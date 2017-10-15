@@ -1,0 +1,28 @@
+[package]
+name = "wg3d"
+version = "0.1.0"
+authors = ["Philip Woods <elzairthesorcerer@gmail.com>"]
+description = "Simple 3D Model format"
+readme = "README.md"
+license = "MIT/Apache-2.0"
+documentation = "https://docs.rs/wg3d/"
+homepage = "https://github.com/Elzair/wg3d_rs"
+repository = "https://github.com/Elzair/wg3d_rs"
+keywords = ["wg3d", "3d", "model"]
+categories = ["game-engines"]
+
+# [features]
+# binaries = ["clap"]
+
+[[bin]]
+name = "gltf2wg3d"
+path = "src/bin/gltf2wg3d.rs"
+# required-features = ["binaries"]
+
+[dependencies]
+bincode = "0.8"
+# clap = { version = "2", optional = true }
+clap = "2"
+gltf = "^0.9.2"
+serde = "^1.0"
+serde_derive = "^1.0"
