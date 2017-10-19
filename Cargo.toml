@@ -21,6 +21,7 @@ path = "src/bin/gltf2wg3d.rs"
 
 [dependencies]
 bincode = "0.8"
+byteorder = "1"
 # clap = { version = "2", optional = true }
 clap = "2"
 gltf = "0.9"
