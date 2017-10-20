@@ -6,7 +6,8 @@ use gltf::{Gltf, texture};
 use gltf::image as gltf_image;
 use image::{self, GenericImage};
 
-use super::super::{Result, Error, Wg3dError};
+use super::super::{Result, Error};
+use super::ConvertError;
 use super::buffer::Buffers;
 
 pub type Textures = HashMap<String, Texture>;
@@ -98,7 +99,7 @@ pub fn get<'a>(
 
                     (uri, img)
                 } else {
-                    return Err(Error::Wg3d(Wg3dError::MissingImageBuffer));
+                    return Err(Error::Convert(ConvertError::MissingImageBuffer));
                 }
             },
             gltf_image::Data::Uri{ uri, .. } => {

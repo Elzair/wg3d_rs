@@ -5,7 +5,8 @@ use std::path::Path;
 
 use gltf::Gltf;
 
-use super::super::{Result, Error, Wg3dError};
+use super::super::{Result, Error};
+use super::ConvertError;
 
 pub type Buffers = HashMap<String, Vec<u8>>;
 
@@ -21,7 +22,7 @@ pub fn get<'a>(
         let metadata = file.metadata()?;
 
         if metadata.len() != (buffer.length() as u64) {
-            return Err(Error::Wg3d(Wg3dError::InvalidBufferLength));
+            return Err(Error::Convert(ConvertError::InvalidBufferLength));
         }
         
         let mut contents = Vec::<u8>::with_capacity(buffer.length()); 

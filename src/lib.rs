@@ -26,7 +26,7 @@ use gltf::material;
 use gltf::mesh::{Primitive, Semantic};
 use gltf::texture;
 
-mod convert;
+pub mod convert;
 use convert::buffer::Buffers;
 
 /// This is the top level Error for this crate.
@@ -35,7 +35,7 @@ pub enum Error {
     Io(io::Error),
     Gltf(gltf::Error),
     Image(image::ImageError),
-    Wg3d(Wg3dError),
+    Convert(convert::ConvertError),
 }
 
 impl fmt::Display for Error {
@@ -44,7 +44,7 @@ impl fmt::Display for Error {
             &Error::Io(ref err) => err.fmt(fmt),
             &Error::Gltf(ref err) => err.fmt(fmt),
             &Error::Image(ref err) => err.fmt(fmt),
-            &Error::Wg3d(ref err) => err.fmt(fmt),
+            &Error::Convert(ref err) => err.fmt(fmt),
         }
     }
 }
@@ -55,7 +55,7 @@ impl error::Error for Error {
             &Error::Io(ref err) => err.description(),
             &Error::Gltf(ref err) => err.description(),
             &Error::Image(ref err) => err.description(),
-            &Error::Wg3d(ref err) => err.description(),
+            &Error::Convert(ref err) => err.description(),
         }
     }
 
@@ -64,7 +64,7 @@ impl error::Error for Error {
             &Error::Io(ref err) => err.cause(),
             &Error::Gltf(ref err) => err.cause(),
             &Error::Image(ref err) => err.cause(),
-            &Error::Wg3d(ref err) => err.cause(),
+            &Error::Convert(ref err) => err.cause(),
         }
     }
 }
@@ -87,89 +87,14 @@ impl From<image::ImageError> for Error {
     }
 }
 
-impl From<Wg3dError> for Error {
-    fn from(err: Wg3dError) -> Error {
-        Error::Wg3d(err)
+impl From<convert::ConvertError> for Error {
+    fn from(err: convert::ConvertError) -> Error {
+        Error::Convert(err)
     }
 }
 
 /// This is the result type.
 pub type Result<T> = result::Result<T, Error>;
-
-/// Error container for handling Wg3d
-#[derive(Debug)]
-pub enum Wg3dError {
-    /// Primitive missing required attributes
-    MissingAttributes,
-    /// Unsupported data type
-    UnsupportedDataType,
-    /// Unsupported dimensions
-    UnsupportedDimensions,
-    /// Invalid buffer length
-    InvalidBufferLength,
-    /// Something weird
-    MissingImageBuffer,
-    Other,
-}
-
-impl fmt::Display for Wg3dError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Wg3dError::MissingAttributes => {
-                write!(fmt, "Primitive missing required attributes")
-            },
-            Wg3dError::UnsupportedDataType => {
-                write!(fmt, "Primitive attribute using unsupported data type")
-            },
-            Wg3dError::UnsupportedDimensions => {
-                write!(fmt, "Primitive attribute using unsupported dimensions")
-            },
-            Wg3dError::InvalidBufferLength => {
-                write!(fmt, "Invalid buffer length")
-            },
-            Wg3dError::MissingImageBuffer => {
-                write!(fmt, "Missing image buffer")
-            },
-            Wg3dError::Other => {
-                write!(fmt, "Something weird happened")
-            },
-        }
-    }
-}
-
-impl error::Error for Wg3dError {
-    fn description(&self) -> &str {
-        static MISSING_ATTRIBUTES: &'static str = "Primitive missing required attributes";
-        static UNSUPPORTED_DATA_TYPE: &'static str = "Primitive attribute using unsupported data type";
-        static UNSUPPORTED_DIMENSIONS: &'static str = "Primitive attribute using unsupported dimensions";
-        static INVALID_BUFFER_LENGTH: &'static str = "Invalid buffer length";
-        static MISSING_IMAGE_BUFFER: &'static str = "Missing image buffer";
-        static OTHER: &'static str = "Something weird happened";
-
-        match *self {
-            Wg3dError::MissingAttributes => {
-                MISSING_ATTRIBUTES
-            },
-            Wg3dError::UnsupportedDataType => {
-                UNSUPPORTED_DATA_TYPE
-            },
-            Wg3dError::UnsupportedDimensions => {
-                UNSUPPORTED_DIMENSIONS
-            },
-            Wg3dError::InvalidBufferLength => {
-                INVALID_BUFFER_LENGTH
-            }
-            Wg3dError::MissingImageBuffer => {
-                MISSING_IMAGE_BUFFER
-            }
-            Wg3dError::Other => {
-                OTHER
-            }
-        }
-    }
-
-    fn cause(&self) -> Option<&error::Error> { None }
-}
 
 #[cfg(test)]
 mod tests {

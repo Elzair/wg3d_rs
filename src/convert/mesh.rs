@@ -8,7 +8,8 @@ use gltf::{Gltf, material};
 use gltf::accessor::{DataType, Dimensions};
 use gltf::mesh::{Primitive, Semantic};
 
-use super::super::{Result, Error, Wg3dError};
+use super::super::{Result, Error};
+use super::ConvertError;
 use super::buffer::Buffers;
 use super::texture::Textures;
 
@@ -125,7 +126,7 @@ fn get_positions<'a>(
     buffers: &'a Buffers
 ) -> Result<Vec<[f32; 3]>> {
     let access = primitive.get(&Semantic::Positions)
-        .ok_or(Wg3dError::MissingAttributes)?;
+        .ok_or(ConvertError::MissingAttributes)?;
     let view = access.view();
     let buff = view.buffer();
 
@@ -154,10 +155,10 @@ fn get_positions<'a>(
 
                     Ok(positions)
                 },
-                _ => Err(Error::Wg3d(Wg3dError::UnsupportedDataType)),
+                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
             }
         },
-        _ => Err(Error::Wg3d(Wg3dError::UnsupportedDimensions)),
+        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
     }
 }
 
@@ -166,7 +167,7 @@ fn get_normals<'a>(
     buffers: &'a Buffers
 ) -> Result<Vec<[f32; 3]>> {
     let access = primitive.get(&Semantic::Normals)
-        .ok_or(Wg3dError::MissingAttributes)?;
+        .ok_or(ConvertError::MissingAttributes)?;
     let view = access.view();
     let buff = view.buffer();
 
@@ -195,10 +196,10 @@ fn get_normals<'a>(
 
                     Ok(normals)
                 },
-                _ => Err(Error::Wg3d(Wg3dError::UnsupportedDimensions)),
+                _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
             }
         },
-        _ => Err(Error::Wg3d(Wg3dError::UnsupportedDataType)),
+        _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
     }
 }
 
@@ -208,7 +209,7 @@ fn get_texcoords<'a>(
     buffers: &'a Buffers
 ) -> Result<Vec<[f32; 2]>> {
     let access = primitive.get(&Semantic::TexCoords(index))
-        .ok_or(Wg3dError::MissingAttributes)?;
+        .ok_or(ConvertError::MissingAttributes)?;
     let view = access.view();
     let buff = view.buffer();
 
@@ -236,10 +237,10 @@ fn get_texcoords<'a>(
 
                     Ok(tex0)
                 },
-                _ => Err(Error::Wg3d(Wg3dError::UnsupportedDimensions)),
+                _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
             }
         },
-        _ => Err(Error::Wg3d(Wg3dError::UnsupportedDataType)),
+        _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
     }
 }
 
@@ -248,7 +249,7 @@ fn get_tangents<'a>(
     buffers: &'a Buffers
 ) -> Result<Vec<[f32; 4]>> {
     let access = primitive.get(&Semantic::Tangents)
-        .ok_or(Wg3dError::MissingAttributes)?;
+        .ok_or(ConvertError::MissingAttributes)?;
     let view = access.view();
     let buff = view.buffer();
 
@@ -278,10 +279,10 @@ fn get_tangents<'a>(
 
                     Ok(tangents)
                 },
-                _ => Err(Error::Wg3d(Wg3dError::UnsupportedDataType)),
+                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
             }
         },
-        _ => Err(Error::Wg3d(Wg3dError::UnsupportedDimensions)),
+        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
     }
 }
 
@@ -290,7 +291,7 @@ fn get_joints<'a>(
     buffers: &'a Buffers
 ) -> Result<Vec<[u16; 4]>> {
     let access = primitive.get(&Semantic::Joints(0))
-        .ok_or(Wg3dError::MissingAttributes)?;
+        .ok_or(ConvertError::MissingAttributes)?;
     let view = access.view();
     let buff = view.buffer();
 
@@ -345,10 +346,10 @@ fn get_joints<'a>(
 
                     Ok(joints)
                 },
-                _ => Err(Error::Wg3d(Wg3dError::UnsupportedDataType)),
+                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
             }
         },
-        _ => Err(Error::Wg3d(Wg3dError::UnsupportedDimensions)),
+        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
     }
 }
 
@@ -357,7 +358,7 @@ fn get_weights<'a>(
     buffers: &'a Buffers
 ) -> Result<Vec<[u16; 4]>> {
     let access = primitive.get(&Semantic::Joints(0))
-        .ok_or(Wg3dError::MissingAttributes)?;
+        .ok_or(ConvertError::MissingAttributes)?;
     let view = access.view();
     let buff = view.buffer();
 
@@ -437,10 +438,10 @@ fn get_weights<'a>(
 
                     Ok(weights)
                 },
-                _ => Err(Error::Wg3d(Wg3dError::UnsupportedDataType)),
+                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
             }
         },
-        _ => Err(Error::Wg3d(Wg3dError::UnsupportedDimensions)),
+        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
     }
 }
 

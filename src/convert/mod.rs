@@ -1,4 +1,6 @@
 use std::env::current_dir;
+use std::error;
+use std::fmt;
 use std::fs::File;
 use std::io;
 use std::path::Path;
@@ -37,6 +39,82 @@ fn load_gltf<P: AsRef<Path>>(path: P) -> Result<Gltf> {
     .validate_minimally()?;
 
     Ok(gltf)
+}
+
+/// Error container for handling Wg3d
+#[derive(Debug)]
+pub enum ConvertError {
+    /// Primitive missing required attributes
+    MissingAttributes,
+    /// Unsupported data type
+    UnsupportedDataType,
+    /// Unsupported dimensions
+    UnsupportedDimensions,
+    /// Invalid buffer length
+    InvalidBufferLength,
+    /// Image buffer not present
+    MissingImageBuffer,
+    /// Something weird
+    Other,
+}
+
+impl fmt::Display for ConvertError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ConvertError::MissingAttributes => {
+                write!(fmt, "Primitive missing required attributes")
+            },
+            ConvertError::UnsupportedDataType => {
+                write!(fmt, "Primitive attribute using unsupported data type")
+            },
+            ConvertError::UnsupportedDimensions => {
+                write!(fmt, "Primitive attribute using unsupported dimensions")
+            },
+            ConvertError::InvalidBufferLength => {
+                write!(fmt, "Invalid buffer length")
+            },
+            ConvertError::MissingImageBuffer => {
+                write!(fmt, "Missing image buffer")
+            },
+            ConvertError::Other => {
+                write!(fmt, "Something weird happened")
+            },
+        }
+    }
+}
+
+impl error::Error for ConvertError {
+    fn description(&self) -> &str {
+        static MISSING_ATTRIBUTES: &'static str = "Primitive missing required attributes";
+        static UNSUPPORTED_DATA_TYPE: &'static str = "Primitive attribute using unsupported data type";
+        static UNSUPPORTED_DIMENSIONS: &'static str = "Primitive attribute using unsupported dimensions";
+        static INVALID_BUFFER_LENGTH: &'static str = "Invalid buffer length";
+        static MISSING_IMAGE_BUFFER: &'static str = "Missing image buffer";
+        static OTHER: &'static str = "Something weird happened";
+
+        match *self {
+            ConvertError::MissingAttributes => {
+                MISSING_ATTRIBUTES
+            },
+            ConvertError::UnsupportedDataType => {
+                UNSUPPORTED_DATA_TYPE
+            },
+            ConvertError::UnsupportedDimensions => {
+                UNSUPPORTED_DIMENSIONS
+            },
+            ConvertError::InvalidBufferLength => {
+                INVALID_BUFFER_LENGTH
+            }
+            ConvertError::MissingImageBuffer => {
+                MISSING_IMAGE_BUFFER
+            }
+            ConvertError::Other => {
+                OTHER
+            }
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> { None }
 }
 
 #[cfg(test)]
