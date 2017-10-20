@@ -25,5 +25,6 @@ byteorder = "1"
 # clap = { version = "2", optional = true }
 clap = "2"
 gltf = "0.9"
+image = "0.17"
 serde = "^1.0"
 serde_derive = "^1.0"
