@@ -9,7 +9,7 @@ use super::super::{Result, Error, Wg3dError};
 
 pub type Buffers = HashMap<String, Vec<u8>>;
 
-pub fn get_buffers<'a>(
+pub fn get<'a>(
     base_path: &'a Path,
     gltf: &'a Gltf
 ) -> Result<Buffers> {
@@ -31,4 +31,25 @@ pub fn get_buffers<'a>(
     }
 
     Ok(buffers)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::load_gltf;
+    use super::*;
+
+    #[test]
+    fn test_convert_buffers_get() {
+        let path = Path::new("testmodels/gltf2/Monster/Monster.gltf");
+        let parent = path.parent().unwrap();
+        let gltf = load_gltf(path).unwrap();
+
+        match get(&parent, &gltf) {
+            Ok(_) => {},
+            Err(err) => {
+                println!("{}", err.to_string());
+                assert!(false);
+            }
+        }
+    }
 }
