@@ -14,9 +14,9 @@ categories = ["game-engines"]
 # [features]
 # binaries = ["clap"]
 
-[[bin]]
-name = "gltf2wg3d"
-path = "src/bin/gltf2wg3d.rs"
+# [[bin]]
+# name = "gltf2wg3d"
+# path = "src/bin/gltf2wg3d.rs"
 # required-features = ["binaries"]
 
 [dependencies]

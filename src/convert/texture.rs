@@ -9,9 +9,9 @@ use image::{self, GenericImage};
 use super::super::{Result, Error, Wg3dError};
 use super::buffer::Buffers;
 
-pub type TexturesInfo = HashMap<String, TextureInfo>;
+pub type Textures = HashMap<String, Texture>;
 
-pub struct TextureInfo {
+pub struct Texture {
     mag_filter: MagFilter,
     min_filter: MinFilter,
     wrap_s_mode: WrappingMode,
@@ -53,8 +53,8 @@ pub fn get<'a>(
     base_path: &'a Path,
     gltf: &'a Gltf,
     buffers: &'a Buffers
-) -> Result<TexturesInfo> {
-    let mut textures = TexturesInfo::new();
+) -> Result<Textures> {
+    let mut textures = Textures::new();
     
     for texture in gltf.textures() {
         let sampler = texture.sampler();
@@ -119,7 +119,7 @@ pub fn get<'a>(
 
         textures.insert(
             uri,
-            TextureInfo {
+            Texture {
                 mag_filter: mag_filter,
                 min_filter: min_filter,
                 wrap_s_mode: wrap_s,

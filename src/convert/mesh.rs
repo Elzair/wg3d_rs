@@ -10,6 +10,7 @@ use gltf::mesh::{Primitive, Semantic};
 
 use super::super::{Result, Error, Wg3dError};
 use super::buffer::Buffers;
+use super::texture::Textures;
 
 pub struct Mesh {
     positions: Vec<[f32; 3]>,
