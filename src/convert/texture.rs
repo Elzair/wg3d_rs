@@ -44,7 +44,7 @@ pub enum TextureContents {
     Array(Vec<u8>),
 }
 
-pub fn get_textures<'a>(
+pub fn get<'a>(
     base_path: &'a Path,
     gltf: &'a Gltf,
     buffers: &'a Buffers
@@ -79,7 +79,6 @@ pub fn get_textures<'a>(
         };
 
         // Get contents of image as either byte array or `image::DynamicImage`.
-        // TODO: Support loading TGA format and KTX textures.
         let (uri, contents) = match texture.source().data() {
             gltf_image::Data::View { view, mime_type } => {
                 let offset = view.offset();
@@ -119,4 +118,27 @@ pub fn get_textures<'a>(
     }
 
     Ok(textures)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::load_gltf;
+    use super::super::buffer::get as get_buffers;
+    use super::*;
+
+    #[test]
+    fn test_convert_buffers_get() {
+        let path = Path::new("testmodels/gltf2/Monster/Monster.gltf");
+        let parent = path.parent().unwrap();
+        let gltf = load_gltf(path).unwrap();
+        let buffers = get_buffers(&parent, &gltf).unwrap();
+
+        match get(&parent, &gltf, &buffers) {
+            Ok(_) => {},
+            Err(err) => {
+                println!("{}", err.to_string());
+                assert!(false);
+            }
+        }
+    }
 }
