@@ -4,7 +4,7 @@ use std::path::Path;
 
 use gltf::{Gltf, texture};
 use gltf::image as gltf_image;
-use image::{self, DynamicImage};
+use image::{self, GenericImage};
 
 use super::super::{Result, Error, Wg3dError};
 use super::buffer::Buffers;
@@ -16,7 +16,10 @@ pub struct TextureInfo {
     min_filter: MinFilter,
     wrap_s_mode: WrappingMode,
     wrap_t_mode: WrappingMode,
-    contents: TextureContents,
+    width: u32,
+    height: u32,
+    format: Format,
+    contents: Vec<u8>,
 }
 
 pub enum MagFilter {
@@ -39,9 +42,11 @@ pub enum WrappingMode {
     Repeat,
 }
 
-pub enum TextureContents {
-    DynamicImage(DynamicImage),
-    Array(Vec<u8>),
+pub enum Format {
+    GrayImage,
+    GrayAlphaImage,
+    RgbImage,
+    RgbaImage,
 }
 
 pub fn get<'a>(
@@ -79,8 +84,8 @@ pub fn get<'a>(
         };
 
         // Get contents of image as either byte array or `image::DynamicImage`.
-        let (uri, contents) = match texture.source().data() {
-            gltf_image::Data::View { view, mime_type } => {
+        let (uri, img) = match texture.source().data() {
+            gltf_image::Data::View { view, .. } => {
                 let offset = view.offset();
                 let length = view.length();
                 let buffer = view.buffer();
@@ -89,20 +94,27 @@ pub fn get<'a>(
                 if let Some(arr) = buffers.get(&uri) {
                     let sl = &arr[offset..(offset+length)];
                     
-                    let contents = image::load_from_memory(sl)?;
+                    let img = image::load_from_memory(sl)?;
 
-                    (uri, TextureContents::DynamicImage(contents))
+                    (uri, img)
                 } else {
                     return Err(Error::Wg3d(Wg3dError::MissingImageBuffer));
                 }
             },
-            gltf_image::Data::Uri{ uri, mime_type } => {
+            gltf_image::Data::Uri{ uri, .. } => {
                 let uri_copy = uri.to_string();
                 let full_path = base_path.to_path_buf().join(uri);
-                let contents = image::open(full_path)?;
+                let img = image::open(full_path)?;
 
-                (uri_copy, TextureContents::DynamicImage(contents))
+                (uri_copy, img )
             },
+        };
+
+        let format = match &img {
+            &image::DynamicImage::ImageLuma8(_) => Format::GrayImage,
+            &image::DynamicImage::ImageLumaA8(_) => Format::GrayAlphaImage,
+            &image::DynamicImage::ImageRgb8(_) => Format::RgbImage,
+            &image::DynamicImage::ImageRgba8(_) => Format::RgbaImage,
         };
 
         textures.insert(
@@ -112,7 +124,10 @@ pub fn get<'a>(
                 min_filter: min_filter,
                 wrap_s_mode: wrap_s,
                 wrap_t_mode: wrap_t,
-                contents: contents,
+                width: img.width(),
+                height: img.height(),
+                format: format,
+                contents: img.raw_pixels(),
             }
         );
     }
