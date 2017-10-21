@@ -34,7 +34,7 @@ pub fn get_mesh<'a>(
     for mesh in gltf.meshes() {
         if mesh.index() == index {
             for prim in mesh.primitives() {
-                let material = get_material(&prim);
+                // let material = get_material(&prim);
 
                 let positions = get_positions(&prim, buffers)?;
                 let normals = get_normals(&prim, buffers)?;
@@ -71,52 +71,6 @@ pub fn get_mesh<'a>(
     }
 
     Ok(meshes)
-}
-
-// Material Methods
-
-enum AlphaMode {
-    Blend,
-    Mask,
-    Opaque,
-}
-
-fn get_material<'a>(
-    primitive: &'a Primitive,
-) -> Result<()> {
-    let material = primitive.material();
-
-    let alpha_cutoff = material.alpha_cutoff();
-    let alpha_mode = match material.alpha_mode() {
-        material::AlphaMode::Blend => AlphaMode::Blend,
-        material::AlphaMode::Mask => AlphaMode::Mask,
-        material::AlphaMode::Opaque => AlphaMode::Opaque,
-    };
-    let double_sided = material.double_sided();
-    
-    Ok(())
-}
-
-struct NormalTexture {
-    scale: f32,
-    tex_corrd: u32,
-    contents: Vec<u8>,
-}
-
-fn get_normal_texture<'a>(
-    material: &'a material::Material,
-) -> Result<Option<()>> {
-    let normal_texture = match material.normal_texture() {
-        Some(tex) => tex,
-        None => { return Ok(None); },
-    };
-
-    let scale = normal_texture.scale();
-    let tex_coord = normal_texture.tex_coord();
-    let texture = normal_texture.texture();
-    
-
-    Ok(Some(()))
 }
 
 // Vertex Attribute Methods

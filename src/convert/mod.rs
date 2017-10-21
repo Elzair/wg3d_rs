@@ -10,6 +10,7 @@ use gltf::Gltf;
 use super::Result;
 
 pub mod buffer;
+pub mod material;
 pub mod mesh;
 pub mod texture;
 
@@ -54,6 +55,8 @@ pub enum ConvertError {
     InvalidBufferLength,
     /// Image buffer not present
     MissingImageBuffer,
+    /// Multiple textures share binary buffer
+    MultipleTexturesInBuffer,
     /// Something weird
     Other,
 }
@@ -76,6 +79,9 @@ impl fmt::Display for ConvertError {
             ConvertError::MissingImageBuffer => {
                 write!(fmt, "Missing image buffer")
             },
+            ConvertError::MultipleTexturesInBuffer => {
+                write!(fmt, "Multiple textures share binary buffer")
+            },
             ConvertError::Other => {
                 write!(fmt, "Something weird happened")
             },
@@ -90,6 +96,7 @@ impl error::Error for ConvertError {
         static UNSUPPORTED_DIMENSIONS: &'static str = "Primitive attribute using unsupported dimensions";
         static INVALID_BUFFER_LENGTH: &'static str = "Invalid buffer length";
         static MISSING_IMAGE_BUFFER: &'static str = "Missing image buffer";
+        static MULTIPLE_TEXTURES_IN_BUFFER: &'static str = "Multiple textures share binary buffer";
         static OTHER: &'static str = "Something weird happened";
 
         match *self {
@@ -104,13 +111,16 @@ impl error::Error for ConvertError {
             },
             ConvertError::InvalidBufferLength => {
                 INVALID_BUFFER_LENGTH
-            }
+            },
             ConvertError::MissingImageBuffer => {
                 MISSING_IMAGE_BUFFER
-            }
+            },
+            ConvertError::MultipleTexturesInBuffer => {
+                MULTIPLE_TEXTURES_IN_BUFFER
+            },
             ConvertError::Other => {
                 OTHER
-            }
+            },
         }
     }
 

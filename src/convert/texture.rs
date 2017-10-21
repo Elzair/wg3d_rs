@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::io::Read;
 use std::path::Path;
 
 use gltf::{Gltf, texture};
@@ -12,6 +11,7 @@ use super::buffer::Buffers;
 
 pub type Textures = HashMap<String, Texture>;
 
+#[derive(Clone, Debug)]
 pub struct Texture {
     mag_filter: MagFilter,
     min_filter: MinFilter,
@@ -23,11 +23,13 @@ pub struct Texture {
     contents: Vec<u8>,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum MagFilter {
     Nearest,
     Linear,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum MinFilter {
     Nearest,
     Linear,
@@ -37,12 +39,14 @@ pub enum MinFilter {
     LinearMipmapLinear,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum WrappingMode {
     ClampToEdge,
     MirroredRepeat,
     Repeat,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum Format {
     GrayImage,
     GrayAlphaImage,
@@ -118,7 +122,7 @@ pub fn get<'a>(
             &image::DynamicImage::ImageRgba8(_) => Format::RgbaImage,
         };
 
-        textures.insert(
+        match textures.insert(
             uri,
             Texture {
                 mag_filter: mag_filter,
@@ -130,7 +134,12 @@ pub fn get<'a>(
                 format: format,
                 contents: img.raw_pixels(),
             }
-        );
+        ) {
+            Some(returned_value) => {
+                return Err(Error::Convert(ConvertError::MultipleTexturesInBuffer));
+            },
+            None => {},
+        }
     }
 
     Ok(textures)
