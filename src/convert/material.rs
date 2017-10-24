@@ -25,7 +25,7 @@ pub enum AlphaMode {
     Opaque,
 }
 
-pub fn get_material<'a>(
+pub fn get<'a>(
     primitive: &'a Primitive,
     textures: &'a Textures,
 ) -> Result<Material> {

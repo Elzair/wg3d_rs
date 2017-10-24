@@ -12,6 +12,8 @@ use super::Result;
 pub mod buffer;
 pub mod material;
 pub mod mesh;
+pub mod primitive;
+pub mod skin;
 pub mod texture;
 
 pub fn get_nodes<P: AsRef<Path>>(
@@ -21,13 +23,12 @@ pub fn get_nodes<P: AsRef<Path>>(
     let parent = path.as_ref().parent().unwrap_or(&cwd);
     let gltf = load_gltf(path.as_ref())?;
     let buffers = buffer::get(&parent, &gltf)?;
+    let textures = texture::get(&parent, &gltf, &buffers)?;
 
     for node in gltf.nodes() {
         if let Some(mesh) = node.mesh() {
-            // See if the node also has a skin.
-            let has_joints = node.skin().is_some();
-            
-            let _ = mesh::get_mesh(&gltf, mesh.index(), has_joints, &buffers)?;
+            let skin = node.skin();
+            let _ = mesh::get(&mesh, skin, &buffers, &textures)?;
         }
     }
 
