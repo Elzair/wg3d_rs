@@ -17,6 +17,7 @@ use super::texture::Textures;
 
 pub struct Primitive {
     vertex_attributes: VertexAttributes,
+    indices: Option<Vec<u32>>,
     material: Material,
 }
 
@@ -27,12 +28,95 @@ pub fn get<'a>(
     has_bones: bool,
 ) -> Result<Primitive> {
     let vertex_attributes = get_vertex_attributes(primitive, buffers, has_bones)?;
+    let indices = get_indices(primitive, buffers)?;
     let material = get_material(primitive, textures)?;
 
     Ok(Primitive {
         vertex_attributes: vertex_attributes,
+        indices: indices,
         material: material,
     })
+}
+
+fn get_indices<'a>(
+    primitive: &'a gltf_mesh::Primitive,
+    buffers: &'a Buffers,
+) -> Result<Option<Vec<u32>>> {
+    let tmp = primitive.indices();
+
+    if tmp.is_none() {
+        return Ok(None);
+    }
+
+    let access = tmp.unwrap();
+    let view = access.view();
+    let buff = view.buffer();
+
+    let mut offset = view.offset() + access.offset();
+
+    match access.dimensions() {
+        Dimensions::Scalar => {
+            match access.data_type() {
+                DataType::U8 => {
+                    let size = mem::size_of::<u8>();
+                    let mut indices = Vec::<u32>::with_capacity(access.count());
+                    let inbuf = buffers.get(buff.uri()).unwrap();
+
+                    #[allow(unused_variables)]
+                    for i in 0..access.count() {
+                        let sl = &inbuf[offset..(offset+size)];
+                        let mut cursor = io::Cursor::new(sl);
+
+                        let idx = cursor.read_u8()?;
+                        indices.push(idx as u32);
+
+                        offset = offset + size;
+                    }
+
+                    Ok(Some(indices))
+                },
+                DataType::U16 => {
+                    let size = mem::size_of::<u16>();
+                    let mut indices = Vec::<u32>::with_capacity(access.count());
+                    let inbuf = buffers.get(buff.uri()).unwrap();
+
+                    #[allow(unused_variables)]
+                    for i in 0..access.count() {
+                        let sl = &inbuf[offset..(offset+size)];
+                        let mut cursor = io::Cursor::new(sl);
+
+                        let idx = cursor.read_u16::<LittleEndian>()?;
+                        indices.push(idx as u32);
+
+                        offset = offset + size;
+                    }
+
+                    Ok(Some(indices))
+                },
+                DataType::U32 => {
+                    let size = mem::size_of::<u32>();
+                    let mut indices = Vec::<u32>::with_capacity(access.count());
+                    let inbuf = buffers.get(buff.uri()).unwrap();
+
+                    #[allow(unused_variables)]
+                    for i in 0..access.count() {
+                        let sl = &inbuf[offset..(offset+size)];
+                        let mut cursor = io::Cursor::new(sl);
+
+                        let idx = cursor.read_u32::<LittleEndian>()?;
+                        indices.push(idx);
+
+                        offset = offset + size;
+                    }
+
+                    Ok(Some(indices))
+                },
+                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
+            }
+        },
+        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
+    }
+
 }
 
 pub struct VertexAttributes {
