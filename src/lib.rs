@@ -1,5 +1,6 @@
 extern crate bincode;
 extern crate byteorder;
+extern crate cgmath;
 extern crate gltf;
 extern crate image;
 extern crate serde;

@@ -1,10 +1,8 @@
-use std::path::Path;
 use std::io;
-use std::io::Read;
 use std::mem;
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use gltf::{Gltf, material};
+use cgmath::{Vector4, Matrix4};
 use gltf::accessor::{DataType, Dimensions};
 use gltf::mesh::Semantic;
 use gltf::mesh as gltf_mesh;
@@ -36,6 +34,70 @@ pub fn get<'a>(
         indices: indices,
         material: material,
     })
+}
+
+pub struct VertexAttributes {
+    positions: Vec<[f32; 3]>,
+    normals: Vec<[f32; 3]>,
+    texcoords_0: Vec<[u16; 2]>,
+    texcoords_1: Option<Vec<[u16; 2]>>,
+    tangents: Option<Vec<[f32; 4]>>,
+    bones: Option<Bones>,
+}
+
+fn get_vertex_attributes<'a>(
+    primitive: &'a gltf_mesh::Primitive,
+    buffers: &'a Buffers,
+    has_joints: bool,
+) -> Result<VertexAttributes> {
+    let positions = get_positions(primitive, buffers)?;
+    let normals = get_normals(primitive, buffers)?;
+    let texcoords_0 = get_texcoords(primitive, 0, buffers)?;
+
+    let texcoords_1 = if let Some(_) = primitive.get(&Semantic::TexCoords(1)) {
+        let res = get_texcoords(primitive, 0, buffers)?;
+        Some(res)
+    } else { None };
+
+    // Retrieve tangents (if they exist) and also compute bitangents.
+    let tangents = if let Some(_) = primitive.get(&Semantic::Tangents) {
+        let res = get_tangents(primitive, buffers)?;
+        Some(res)
+    } else { None };
+
+    let bones = get_bones(primitive, buffers, has_joints)?;
+
+    Ok(VertexAttributes {
+        positions: positions,
+        normals: normals,
+        texcoords_0: texcoords_0,
+        texcoords_1: texcoords_1,
+        tangents: tangents,
+        bones: bones,
+    })
+}
+
+pub struct Bones {
+    joints: Vec<[u16; 4]>,
+    weights: Vec<[u16; 4]>,
+}
+
+fn get_bones<'a>(
+    primitive: &'a gltf_mesh::Primitive,
+    buffers: &'a Buffers,
+    has_joints: bool
+) -> Result<Option<Bones>> {
+    if has_joints {
+        let joints = get_joints(primitive, buffers)?;
+        let weights = get_weights(primitive, buffers)?;
+
+        Ok(Some(Bones {
+            joints: joints,
+            weights: weights,
+        }))
+    } else {
+        Ok(None)
+    }
 }
 
 fn get_indices<'a>(
@@ -116,71 +178,6 @@ fn get_indices<'a>(
         },
         _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
     }
-
-}
-
-pub struct VertexAttributes {
-    positions: Vec<[f32; 3]>,
-    normals: Vec<[f32; 3]>,
-    texcoords_0: Vec<[u16; 2]>,
-    texcoords_1: Option<Vec<[u16; 2]>>,
-    tangents: Option<Vec<[f32; 4]>>,
-    bones: Option<Bones>,
-}
-
-fn get_vertex_attributes<'a>(
-    primitive: &'a gltf_mesh::Primitive,
-    buffers: &'a Buffers,
-    has_joints: bool,
-) -> Result<VertexAttributes> {
-    let positions = get_positions(primitive, buffers)?;
-    let normals = get_normals(primitive, buffers)?;
-    let texcoords_0 = get_texcoords(primitive, 0, buffers)?;
-
-    let texcoords_1 = if let Some(_) = primitive.get(&Semantic::TexCoords(1)) {
-        let res = get_texcoords(primitive, 0, buffers)?;
-        Some(res)
-    } else { None };
-
-    // Retrieve tangents (if they exist) and also compute bitangents.
-    let tangents = if let Some(_) = primitive.get(&Semantic::Tangents) {
-        let res = get_tangents(primitive, buffers)?;
-        Some(res)
-    } else { None };
-
-    let bones = get_bones(primitive, buffers, has_joints)?;
-
-    Ok(VertexAttributes {
-        positions: positions,
-        normals: normals,
-        texcoords_0: texcoords_0,
-        texcoords_1: texcoords_1,
-        tangents: tangents,
-        bones: bones,
-    })
-}
-
-pub struct Bones {
-    joints: Vec<[u16; 4]>,
-    weights: Vec<[u16; 4]>,
-}
-
-fn get_bones<'a>(
-    primitive: &'a gltf_mesh::Primitive,
-    buffers: &'a Buffers,
-    has_joints: bool
-) -> Result<Option<Bones>> {
-    if has_joints {
-        let joints = get_joints(primitive, buffers)?;
-        let weights = get_weights(primitive, buffers)?;
-
-        Ok(Some(Bones {
-            joints: joints,
-            weights: weights,
-        }))
-    } else {
-        Ok(None)
-    }
 }
 
 // Vertex Attribute Methods
@@ -212,7 +209,16 @@ fn get_positions<'a>(
                         let x = cursor.read_f32::<LittleEndian>()?;
                         let y = cursor.read_f32::<LittleEndian>()?;
                         let z = cursor.read_f32::<LittleEndian>()?;
-                        positions.push([x, y, z]);
+                        // Transform coordinates from gltf coordinate space to vulkan coordinate space.
+                        let position = Vector4::<f32>::new(x, y, z, 1.0);
+                        let rotation_matrix = Matrix4::new(
+                            1.0,  0.0,  0.0, 0.0,
+                            0.0, -1.0, -0.0, 0.0,
+                            0.0,  0.0, -1.0, 0.0,
+                            0.0,  0.0,  0.0, 1.0
+                        );
+                        let pos = rotation_matrix * position;
+                        positions.push([pos.x, pos.y, pos.z]);
 
                         offset = offset + view.stride().unwrap_or(access.size());
                     }
@@ -253,7 +259,16 @@ fn get_normals<'a>(
                         let x = cursor.read_f32::<LittleEndian>()?;
                         let y = cursor.read_f32::<LittleEndian>()?;
                         let z = cursor.read_f32::<LittleEndian>()?;
-                        normals.push([x, y, z]);
+                        // Transform coordinates from gltf coordinate space to vulkan coordinate space.
+                        let normal = Vector4::<f32>::new(x, y, z, 1.0);
+                        let rotation_matrix = Matrix4::new(
+                            1.0,  0.0,  0.0, 0.0,
+                            0.0, -1.0, -0.0, 0.0,
+                            0.0,  0.0, -1.0, 0.0,
+                            0.0,  0.0,  0.0, 1.0
+                        );
+                        let norm = rotation_matrix * normal;
+                        normals.push([norm.x, norm.y, norm.z]);
 
                         offset = offset + view.stride().unwrap_or(access.size());
                     }
@@ -295,7 +310,16 @@ fn get_tangents<'a>(
                         let y = cursor.read_f32::<LittleEndian>()?;
                         let z = cursor.read_f32::<LittleEndian>()?;
                         let w = cursor.read_f32::<LittleEndian>()?;
-                        tangents.push([x, y, z, w]);
+                        // Transform coordinates from gltf coordinate space to vulkan coordinate space.
+                        let tangent = Vector4::<f32>::new(x, y, z, w);
+                        let rotation_matrix = Matrix4::new(
+                            1.0,  0.0,  0.0, 0.0,
+                            0.0, -1.0, -0.0, 0.0,
+                            0.0,  0.0, -1.0, 0.0,
+                            0.0,  0.0,  0.0, 1.0
+                        );
+                        let tang = rotation_matrix * tangent ;
+                        tangents.push([tang.x, tang.y, tang.z, tang.w]);
 
                         offset = offset + view.stride().unwrap_or(access.size());
                     }
@@ -334,11 +358,13 @@ fn get_texcoords<'a>(
                         let sl = &inbuf[offset..(offset+size)];
                         let mut cursor = io::Cursor::new(sl);
 
-                        let ss = cursor.read_u8()?;
-                        let s = (ss as u16) << 8;
-                        let tt = cursor.read_u8()?;
-                        let t = (tt as u16) << 8;
-                        coords.push([s, t]);
+                        let s = cursor.read_u8()?;
+                        let ss = (s as u16) << 8;
+                        let t = cursor.read_u8()?;
+                        let tt = (t as u16) << 8;
+                        // Flip t to transfrom from gltf coordinate space to vulkan coordinate space.
+                        let ttt = u16::max_value() - tt;
+                        coords.push([ss, ttt]);
 
                         offset = offset + view.stride().unwrap_or(access.size());
                     }
@@ -357,7 +383,9 @@ fn get_texcoords<'a>(
 
                         let s = cursor.read_u16::<LittleEndian>()?;
                         let t = cursor.read_u16::<LittleEndian>()?;
-                        coords.push([s, t]);
+                        // Flip t to transfrom from gltf coordinate space to vulkan coordinate space.
+                        let tt = u16::max_value() - t;
+                        coords.push([s, tt]);
 
                         offset = offset + view.stride().unwrap_or(access.size());
                     }
@@ -374,11 +402,13 @@ fn get_texcoords<'a>(
                         let sl = &inbuf[offset..(offset+size)];
                         let mut cursor = io::Cursor::new(sl);
 
-                        let ss = cursor.read_f32::<LittleEndian>()?;
-                        let s = (ss * (u16::max_value() as f32)).round() as u16;
-                        let tt = cursor.read_f32::<LittleEndian>()?;
-                        let t = (tt * (u16::max_value() as f32)).round() as u16;
-                        coords.push([s, t]);
+                        let s = cursor.read_f32::<LittleEndian>()?;
+                        let ss = (s * (u16::max_value() as f32)).round() as u16;
+                        let t = cursor.read_f32::<LittleEndian>()?;
+                        let tt = (t * (u16::max_value() as f32)).round() as u16;
+                        // Flip t to transfrom from gltf coordinate space to vulkan coordinate space.
+                        let ttt = u16::max_value() - tt;
+                        coords.push([ss, ttt]);
                         
                         offset = offset + view.stride().unwrap_or(access.size());
                     }
@@ -416,15 +446,15 @@ fn get_joints<'a>(
                         let sl = &inbuf[offset..(offset+size)];
                         let mut cursor = io::Cursor::new(sl);
 
-                        let jj0 = cursor.read_u8()?;
-                        let j0 = (jj0 as u16) << 8;
-                        let jj1 = cursor.read_u8()?;
-                        let j1 = (jj1 as u16) << 8;
-                        let jj2 = cursor.read_u8()?;
-                        let j2 = (jj2 as u16) << 8;
-                        let jj3 = cursor.read_u8()?;
-                        let j3 = (jj3 as u16) << 8;
-                        joints.push([j0, j1, j2, j3]);
+                        let j0 = cursor.read_u8()?;
+                        let jj0 = j0 as u16;
+                        let j1 = cursor.read_u8()?;
+                        let jj1 = j1 as u16;
+                        let j2 = cursor.read_u8()?;
+                        let jj2 = j2 as u16;
+                        let j3 = cursor.read_u8()?;
+                        let jj3 = j3 as u16;
+                        joints.push([jj0, jj1, jj2, jj3]);
 
                         offset = offset + view.stride().unwrap_or(access.size());
                     }
