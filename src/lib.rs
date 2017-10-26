@@ -3,6 +3,7 @@ extern crate byteorder;
 extern crate cgmath;
 extern crate gltf;
 extern crate image;
+extern crate itertools;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;

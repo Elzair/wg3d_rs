@@ -27,8 +27,7 @@ pub fn get_nodes<P: AsRef<Path>>(
 
     for node in gltf.nodes() {
         if let Some(mesh) = node.mesh() {
-            let skin = node.skin();
-            let _ = mesh::get(&mesh, skin, &buffers, &textures)?;
+            let _ = mesh::get(&mesh, node.skin(), &buffers, &textures)?;
         }
     }
 
@@ -58,6 +57,8 @@ pub enum ConvertError {
     MissingImageBuffer,
     /// Multiple textures share binary buffer
     MultipleTexturesInBuffer,
+    /// No specified root node of skeleton for a skin
+    NoSkeleton,
     /// Something weird
     Other,
 }
@@ -83,6 +84,9 @@ impl fmt::Display for ConvertError {
             ConvertError::MultipleTexturesInBuffer => {
                 write!(fmt, "Multiple textures share binary buffer")
             },
+            ConvertError::NoSkeleton => {
+                write!(fmt, "No specified root node of skeleton for a skin")
+            },
             ConvertError::Other => {
                 write!(fmt, "Something weird happened")
             },
@@ -98,6 +102,7 @@ impl error::Error for ConvertError {
         static INVALID_BUFFER_LENGTH: &'static str = "Invalid buffer length";
         static MISSING_IMAGE_BUFFER: &'static str = "Missing image buffer";
         static MULTIPLE_TEXTURES_IN_BUFFER: &'static str = "Multiple textures share binary buffer";
+        static NO_SKELETON: &'static str = "No specified root node of skeleton for a skin";
         static OTHER: &'static str = "Something weird happened";
 
         match *self {
@@ -118,6 +123,9 @@ impl error::Error for ConvertError {
             },
             ConvertError::MultipleTexturesInBuffer => {
                 MULTIPLE_TEXTURES_IN_BUFFER
+            },
+            ConvertError::NoSkeleton => {
+                NO_SKELETON
             },
             ConvertError::Other => {
                 OTHER
