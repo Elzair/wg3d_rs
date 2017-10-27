@@ -34,23 +34,23 @@ pub fn get<'a>(
     Ok(buffers)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::super::load_gltf;
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::super::load_gltf;
+//     use super::*;
 
-    #[test]
-    fn test_convert_buffers_get() {
-        let path = Path::new("testmodels/gltf2/Monster/Monster.gltf");
-        let parent = path.parent().unwrap();
-        let gltf = load_gltf(path).unwrap();
+//     #[test]
+//     fn test_convert_buffers_get() {
+//         let path = Path::new("testmodels/gltf2/Monster/Monster.gltf");
+//         let parent = path.parent().unwrap();
+//         let gltf = load_gltf(path).unwrap();
 
-        match get(&parent, &gltf) {
-            Ok(_) => {},
-            Err(err) => {
-                println!("{}", err.to_string());
-                assert!(false);
-            }
-        }
-    }
-}
+//         match get(&parent, &gltf) {
+//             Ok(_) => {},
+//             Err(err) => {
+//                 println!("{}", err.to_string());
+//                 assert!(false);
+//             }
+//         }
+//     }
+// }

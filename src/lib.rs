@@ -2,6 +2,7 @@ extern crate bincode;
 extern crate byteorder;
 extern crate cgmath;
 extern crate gltf;
+extern crate gltf_importer as gltfimp;
 extern crate image;
 extern crate serde;
 #[macro_use]
@@ -35,6 +36,7 @@ use convert::buffer::Buffers;
 pub enum Error {
     Io(io::Error),
     Gltf(gltf::Error),
+    GltfImport(gltfimp::Error),
     Image(image::ImageError),
     Convert(convert::ConvertError),
 }
@@ -44,6 +46,7 @@ impl fmt::Display for Error {
         match self {
             &Error::Io(ref err) => err.fmt(fmt),
             &Error::Gltf(ref err) => err.fmt(fmt),
+            &Error::GltfImport(ref err) => err.fmt(fmt),
             &Error::Image(ref err) => err.fmt(fmt),
             &Error::Convert(ref err) => err.fmt(fmt),
         }
@@ -55,6 +58,7 @@ impl error::Error for Error {
         match self {
             &Error::Io(ref err) => err.description(),
             &Error::Gltf(ref err) => err.description(),
+            &Error::GltfImport(ref err) => err.description(),
             &Error::Image(ref err) => err.description(),
             &Error::Convert(ref err) => err.description(),
         }
@@ -64,6 +68,7 @@ impl error::Error for Error {
         match self {
             &Error::Io(ref err) => err.cause(),
             &Error::Gltf(ref err) => err.cause(),
+            &Error::GltfImport(ref err) => err.cause(),
             &Error::Image(ref err) => err.cause(),
             &Error::Convert(ref err) => err.cause(),
         }
@@ -79,6 +84,12 @@ impl From<io::Error> for Error {
 impl From<gltf::Error> for Error {
     fn from(err: gltf::Error) -> Error {
         Error::Gltf(err)
+    }
+}
+
+impl From<gltfimp::Error> for Error {
+    fn from(err: gltfimp::Error) -> Error {
+        Error::GltfImport(err)
     }
 }
 

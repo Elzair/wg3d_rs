@@ -74,17 +74,7 @@ fn get_base_color<'a>(
     match pbr.base_color_texture() {
         Some(tex) => {
             let tex_coord = tex.tex_coord();
-
-            let uri = match tex.texture().source().data() {
-                Data::View { view, .. } => {
-                    view.buffer().uri().to_string()
-                },
-                Data::Uri { uri, .. } => {
-                    uri.to_string()
-                },
-            };
-
-            let texture = match textures.get(&uri) {
+            let texture = match textures.get(tex.texture().index()) {
                 Some(tex) => tex.clone(),
                 None => {
                     return Err(Error::Convert(ConvertError::MissingImageBuffer));
@@ -120,17 +110,7 @@ fn get_metallic_roughness<'a>(
     match pbr.metallic_roughness_texture() {
         Some(tex) => {
             let tex_coord = tex.tex_coord();
-
-            let uri = match tex.texture().source().data() {
-                Data::View { view, .. } => {
-                    view.buffer().uri().to_string()
-                },
-                Data::Uri { uri, .. } => {
-                    uri.to_string()
-                },
-            };
-
-            let texture = match textures.get(&uri) {
+            let texture = match textures.get(tex.texture().index()) {
                 Some(tex) => tex.clone(),
                 None => {
                     return Err(Error::Convert(ConvertError::MissingImageBuffer));
@@ -159,35 +139,25 @@ fn get_normal_map<'a>(
     material: &'a material::Material,
     textures: &'a Textures,
 ) -> Result<Option<NormalMap>> {
-    let normal_texture = match material.normal_texture() {
-        Some(tex) => tex,
-        None => { return Ok(None); },
-    };
+    match material.normal_texture() {
+        Some(tex) => {
+            let scale = tex.scale();
+            let tex_coord = tex.tex_coord();
+            let texture = match textures.get(tex.texture().index()) {
+                Some(tex) => tex.clone(),
+                None => {
+                    return Err(Error::Convert(ConvertError::MissingImageBuffer));
+                },
+            };
 
-    let scale = normal_texture.scale();
-    let tex_coord = normal_texture.tex_coord();
-
-    let uri = match normal_texture.texture().source().data() {
-        Data::View { view, .. } => {
-            view.buffer().uri().to_string()
+            Ok(Some(NormalMap {
+                scale: scale,
+                tex_coord: tex_coord,
+                texture: texture,
+            }))
         },
-        Data::Uri { uri, .. } => {
-            uri.to_string()
-        },
-    };
-
-    let texture = match textures.get(&uri) {
-        Some(tex) => tex.clone(),
-        None => {
-            return Err(Error::Convert(ConvertError::MissingImageBuffer));
-        },
-    };
-
-    Ok(Some(NormalMap {
-        scale: scale,
-        tex_coord: tex_coord,
-        texture: texture,
-    }))
+        None => { Ok(None) },
+    }
 }
 
 pub struct OcclusionMap {
@@ -200,35 +170,25 @@ fn get_occlusion_map<'a>(
     material: &'a material::Material,
     textures: &'a Textures,
 ) -> Result<Option<OcclusionMap>> {
-    let occlusion_texture = match material.occlusion_texture() {
-        Some(tex) => tex,
-        None => { return Ok(None); },
-    };
+    match material.occlusion_texture() {
+        Some(tex) => {
+            let strength = tex.strength();
+            let tex_coord = tex.tex_coord();
+            let texture = match textures.get(tex.texture().index()) {
+                Some(tex) => tex.clone(),
+                None => {
+                    return Err(Error::Convert(ConvertError::MissingImageBuffer));
+                },
+            };
 
-    let strength = occlusion_texture.strength();
-    let tex_coord = occlusion_texture.tex_coord();
-
-    let uri = match occlusion_texture.texture().source().data() {
-        Data::View { view, .. } => {
-            view.buffer().uri().to_string()
+            Ok(Some(OcclusionMap {
+                strength: strength,
+                tex_coord: tex_coord,
+                texture: texture,
+            }))
         },
-        Data::Uri { uri, .. } => {
-            uri.to_string()
-        },
-    };
-
-    let texture = match textures.get(&uri) {
-        Some(tex) => tex.clone(),
-        None => {
-            return Err(Error::Convert(ConvertError::MissingImageBuffer));
-        },
-    };
-
-    Ok(Some(OcclusionMap {
-        strength: strength,
-        tex_coord: tex_coord,
-        texture: texture,
-    }))
+        None => { Ok(None) },
+    }
 }
 
 pub enum EmissionMap {
@@ -246,17 +206,7 @@ fn get_emission_map<'a>(
     match material.emissive_texture() {
         Some(tex) => {
             let tex_coord = tex.tex_coord();
-
-            let uri = match tex.texture().source().data() {
-                Data::View { view, .. } => {
-                    view.buffer().uri().to_string()
-                },
-                Data::Uri { uri, .. } => {
-                    uri.to_string()
-                },
-            };
-
-            let texture = match textures.get(&uri) {
+            let texture = match textures.get(tex.texture().index()) {
                 Some(tex) => tex.clone(),
                 None => {
                     return Err(Error::Convert(ConvertError::MissingImageBuffer));
