@@ -3,6 +3,7 @@ use std::io;
 use std::io::Read;
 use std::mem;
 
+use cgmath::Matrix4;
 use gltf::Gltf;
 use gltf::mesh::Mesh as GltfMesh;
 use gltf::skin::Skin as GltfSkin;
@@ -22,6 +23,7 @@ pub struct Mesh {
 pub fn get<'a>(
     mesh: &'a GltfMesh,
     skin: Option<GltfSkin>,
+    transform: Matrix4<f32>,
     buffers: &'a Buffers,
     textures: &'a Vec<Texture>,
 ) -> Result<Mesh> {

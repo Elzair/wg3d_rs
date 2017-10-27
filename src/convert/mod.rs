@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io;
 use std::path::Path;
 
+use cgmath::{Matrix4, SquareMatrix, Vector4};
 use gltf::{Gltf, Node};
 use gltfimp::{import, Buffers};
 
@@ -63,7 +64,13 @@ pub fn get<P: AsRef<Path>>(path: P) -> Result<Vec<Model>> {
     let mut models = Vec::<Model>::new();
 
     for root_node in scene.nodes() {
-        let _  = get_models_helper(&root_node, &mut models, &buffers, &textures)?;
+        get_models_helper(
+            &root_node,
+            Matrix4::identity(),
+            &mut models,
+            &buffers,
+            &textures
+        )?;
     }
 
     Ok(models)
@@ -71,15 +78,24 @@ pub fn get<P: AsRef<Path>>(path: P) -> Result<Vec<Model>> {
 
 fn get_models_helper<'a>(
     node: &'a Node,
+    current_transform: Matrix4<f32>,
     models: &'a mut Vec<Model>,
     buffers: &'a Buffers,
     textures: &'a Vec<texture::Texture>,
 ) -> Result<()> {
+    // Compute current transform.
+    let local_transform = Matrix4::from(node.transform().matrix());
+    let transform = current_transform * local_transform;
+
+    // Add model if mesh is present.
+    if let Some(mesh) = node.mesh() {
+        let mesh = mesh::get(&mesh, node.skin(), transform, buffers, textures)?;
+        models.push(Model { mesh: mesh });
+    }
+    
+    // Try to find models in child nodes.
     for node in node.children() {
-        if let Some(mesh) = node.mesh() {
-            let mesh = mesh::get(&mesh, node.skin(), buffers, textures)?;
-            models.push(Model { mesh: mesh });
-        }
+        get_models_helper(&node, transform, models, buffers, textures)?;
     }
 
     Ok(())
