@@ -8,9 +8,6 @@ use image::{self, GenericImage};
 
 use super::super::{Result, Error};
 use super::ConvertError;
-// use super::buffer::Buffers;
-
-pub type Textures = Vec<Texture>;
 
 #[derive(Clone, Debug)]
 pub struct Texture {
@@ -59,8 +56,8 @@ pub fn get<'a>(
     base_path: &'a Path,
     gltf: &'a Gltf,
     buffers: &'a Buffers
-) -> Result<Textures> {
-    let mut textures = Textures::with_capacity(gltf.textures().len());
+) -> Result<Vec<Texture>> {
+    let mut textures = Vec::<Texture>::with_capacity(gltf.textures().len());
     
     for texture in gltf.textures() {
         let sampler = texture.sampler();

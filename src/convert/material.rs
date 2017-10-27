@@ -6,7 +6,7 @@ use gltf::{Gltf, material};
 
 use super::super::{Result, Error};
 use super::ConvertError;
-use super::texture::{Texture, Textures};
+use super::texture::Texture;
 
 pub struct Material {
     alpha_cutoff: f32,
@@ -27,7 +27,7 @@ pub enum AlphaMode {
 
 pub fn get<'a>(
     primitive: &'a Primitive,
-    textures: &'a Textures,
+    textures: &'a Vec<Texture>,
 ) -> Result<Material> {
     let material = primitive.material();
 
@@ -67,7 +67,7 @@ pub enum BaseColor {
 
 fn get_base_color<'a>(
     material: &'a material::Material,
-    textures: &'a Textures,
+    textures: &'a Vec<Texture>,
 ) -> Result<BaseColor> {
     let pbr = material.pbr_metallic_roughness();
 
@@ -103,7 +103,7 @@ pub enum MetallicRoughness {
 
 fn get_metallic_roughness<'a>(
     material: &'a material::Material,
-    textures: &'a Textures,
+    textures: &'a Vec<Texture>,
 ) -> Result<MetallicRoughness> {
     let pbr = material.pbr_metallic_roughness();
 
@@ -137,7 +137,7 @@ pub struct NormalMap {
 
 fn get_normal_map<'a>(
     material: &'a material::Material,
-    textures: &'a Textures,
+    textures: &'a Vec<Texture>,
 ) -> Result<Option<NormalMap>> {
     match material.normal_texture() {
         Some(tex) => {
@@ -168,7 +168,7 @@ pub struct OcclusionMap {
 
 fn get_occlusion_map<'a>(
     material: &'a material::Material,
-    textures: &'a Textures,
+    textures: &'a Vec<Texture>,
 ) -> Result<Option<OcclusionMap>> {
     match material.occlusion_texture() {
         Some(tex) => {
@@ -201,7 +201,7 @@ pub enum EmissionMap {
 
 fn get_emission_map<'a>(
     material: &'a material::Material,
-    textures: &'a Textures,
+    textures: &'a Vec<Texture>,
 ) -> Result<Option<EmissionMap>> {
     match material.emissive_texture() {
         Some(tex) => {

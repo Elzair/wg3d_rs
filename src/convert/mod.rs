@@ -5,17 +5,19 @@ use std::fs::File;
 use std::io;
 use std::path::Path;
 
-use gltf::Gltf;
-use gltfimp::import;
+use gltf::{Gltf, Node};
+use gltfimp::{import, Buffers};
 
 use super::Result;
 
 pub mod buffer;
 pub mod material;
 pub mod mesh;
-pub mod primitive;
+// pub mod primitive;
 pub mod skin;
 pub mod texture;
+
+// use texture::Texture;
 
 // pub fn get_nodes<P: AsRef<Path>>(
 //     path: P
@@ -43,11 +45,42 @@ pub mod texture;
 //     Ok(gltf)
 // }
 
-pub fn get<P: AsRef<Path>>(path: P) -> Result<()> {
+pub struct Model {
+    mesh: mesh::Mesh,
+}
+
+pub fn get<P: AsRef<Path>>(path: P) -> Result<Vec<Model>> {
+    // Read in all relevant data.
     let cwd = current_dir()?;
     let parent = path.as_ref().parent().unwrap_or(&cwd);
     let (gltf, buffers) = import(&path)?;
     let textures = texture::get(&parent, &gltf, &buffers)?;
+
+    // Retrieve default scene from gltf.
+    let scene = gltf.default_scene().ok_or(ConvertError::NoDefaultScene)?;
+
+    // Retrieve models.
+    let mut models = Vec::<Model>::new();
+
+    for root_node in scene.nodes() {
+        let _  = get_models_helper(&root_node, &mut models, &buffers, &textures)?;
+    }
+
+    Ok(models)
+}
+
+fn get_models_helper<'a>(
+    node: &'a Node,
+    models: &'a mut Vec<Model>,
+    buffers: &'a Buffers,
+    textures: &'a Vec<texture::Texture>,
+) -> Result<()> {
+    for node in node.children() {
+        if let Some(mesh) = node.mesh() {
+            let mesh = mesh::get(&mesh, node.skin(), buffers, textures)?;
+            models.push(Model { mesh: mesh });
+        }
+    }
 
     Ok(())
 }
@@ -69,6 +102,8 @@ pub enum ConvertError {
     MultipleTexturesInBuffer,
     /// No specified root node of skeleton for a skin
     NoSkeleton,
+    /// No default scene present
+    NoDefaultScene,
     /// Something weird
     Other,
 }
@@ -97,6 +132,9 @@ impl fmt::Display for ConvertError {
             ConvertError::NoSkeleton => {
                 write!(fmt, "No specified root node of skeleton for a skin")
             },
+            ConvertError::NoDefaultScene => {
+                write!(fmt, "No default scene present")
+            },
             ConvertError::Other => {
                 write!(fmt, "Something weird happened")
             },
@@ -113,6 +151,7 @@ impl error::Error for ConvertError {
         static MISSING_IMAGE_BUFFER: &'static str = "Missing image buffer";
         static MULTIPLE_TEXTURES_IN_BUFFER: &'static str = "Multiple textures share binary buffer";
         static NO_SKELETON: &'static str = "No specified root node of skeleton for a skin";
+        static NO_DEFAULT_SCENE: &'static str = "No default scene present";
         static OTHER: &'static str = "Something weird happened";
 
         match *self {
@@ -136,6 +175,9 @@ impl error::Error for ConvertError {
             },
             ConvertError::NoSkeleton => {
                 NO_SKELETON
+            },
+            ConvertError::NoDefaultScene => {
+                NO_DEFAULT_SCENE
             },
             ConvertError::Other => {
                 OTHER

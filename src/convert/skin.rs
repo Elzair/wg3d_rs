@@ -2,9 +2,9 @@ use std::cell::Cell;
 
 use gltf::scene::Node as GltfNode;
 use gltf::skin::Skin as GltfSkin;
+use gltfimp::Buffers;
 
 use super::super::{Result, Error};
-use super::buffer::Buffers;
 use super::ConvertError;
 
 pub type Skin = Vec<Joint>;
