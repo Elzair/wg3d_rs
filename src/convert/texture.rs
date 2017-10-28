@@ -3,7 +3,7 @@ use std::path::Path;
 
 use gltf::{Gltf, texture};
 use gltf::image as gltf_image;
-use gltfimp::Buffers;
+use gltf_importer::Buffers;
 use image::{self, GenericImage};
 
 use super::super::{Result, Error};

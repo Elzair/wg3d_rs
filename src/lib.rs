@@ -2,7 +2,8 @@ extern crate bincode;
 extern crate byteorder;
 extern crate cgmath;
 extern crate gltf;
-extern crate gltf_importer as gltfimp;
+extern crate gltf_importer;
+extern crate gltf_utils;
 extern crate image;
 extern crate serde;
 #[macro_use]
@@ -36,7 +37,7 @@ use convert::buffer::Buffers;
 pub enum Error {
     Io(io::Error),
     Gltf(gltf::Error),
-    GltfImport(gltfimp::Error),
+    GltfImport(gltf_importer::Error),
     Image(image::ImageError),
     Convert(convert::ConvertError),
 }
@@ -87,8 +88,8 @@ impl From<gltf::Error> for Error {
     }
 }
 
-impl From<gltfimp::Error> for Error {
-    fn from(err: gltfimp::Error) -> Error {
+impl From<gltf_importer::Error> for Error {
+    fn from(err: gltf_importer::Error) -> Error {
         Error::GltfImport(err)
     }
 }

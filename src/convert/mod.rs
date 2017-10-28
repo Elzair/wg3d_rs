@@ -5,46 +5,18 @@ use std::fs::File;
 use std::io;
 use std::path::Path;
 
-use cgmath::{Matrix4, SquareMatrix, Vector4};
-use gltf::{Gltf, Node};
-use gltfimp::{import, Buffers};
+use cgmath::{Matrix4, SquareMatrix};
+use gltf::Node;
+use gltf_importer::{import, Buffers};
 
 use super::Result;
 
 pub mod buffer;
 pub mod material;
 pub mod mesh;
-// pub mod primitive;
+pub mod primitive;
 pub mod skin;
 pub mod texture;
-
-// use texture::Texture;
-
-// pub fn get_nodes<P: AsRef<Path>>(
-//     path: P
-// ) -> Result<()> {
-//     let cwd = current_dir()?;
-//     let parent = path.as_ref().parent().unwrap_or(&cwd);
-//     let gltf = load_gltf(path.as_ref())?;
-//     let buffers = buffer::get(&parent, &gltf)?;
-//     let textures = texture::get(&parent, &gltf, &buffers)?;
-
-//     for node in gltf.nodes() {
-//         if let Some(mesh) = node.mesh() {
-//             let _ = mesh::get(&mesh, node.skin(), &buffers, &textures)?;
-//         }
-//     }
-
-//     Ok(())
-// }
-
-// fn load_gltf<P: AsRef<Path>>(path: P) -> Result<Gltf> {
-//     let file = File::open(path)?;
-//     let gltf = Gltf::from_reader(io::BufReader::new(file))?
-//     .validate_minimally()?;
-
-//     Ok(gltf)
-// }
 
 pub struct Model {
     mesh: mesh::Mesh,
@@ -211,40 +183,12 @@ mod tests {
     #[test]
     fn test_get() {
         let path = Path::new("testmodels/gltf2/Monster/Monster.gltf");
-        if let Ok(_) = get(path) {
-        } else {
-            assert!(false);
+        match get(path) {
+            Ok(_) => {},
+            Err(err) => {
+                println!("{}", err.to_string());
+                assert!(false);
+            }
         }
     }
-
-    // fn get_gltf(path: &Path) -> Gltf {
-    //     let file = File::open(path).unwrap();
-    //     Gltf::from_reader(io::BufReader::new(file)).unwrap()
-    //         .validate_minimally().unwrap()
-    // }
-    
-    // #[test]
-    // fn test_load_gltf() {
-    //     let path = Path::new("testmodels/gltf2/Monster/Monster.gltf");
-
-    //     if let Ok(_) = load_gltf(path) {
-    //     } else {
-    //         assert!(false);
-    //     }
-    // }
-    
-    // #[test]
-    // fn test_get_nodes() {
-    //     let path = Path::new("testmodels/gltf2/Monster/Monster.gltf");
-    //     let parent = path.parent().unwrap();
-    //     let gltf = get_gltf(&path);
-
-    //     match get_nodes(path) {
-    //         Ok(_) => {},
-    //         Err(err) => {
-    //             println!("{}", err.to_string());
-    //             assert!(false);
-    //         }
-    //     }
-    // }
 }

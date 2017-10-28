@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use gltf::scene::Node as GltfNode;
 use gltf::skin::Skin as GltfSkin;
-use gltfimp::Buffers;
+use gltf_importer::Buffers;
 
 use super::super::{Result, Error};
 use super::ConvertError;
