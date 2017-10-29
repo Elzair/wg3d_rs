@@ -5,34 +5,17 @@ extern crate gltf;
 extern crate gltf_importer;
 extern crate gltf_utils;
 extern crate image;
-#[macro_use]
 extern crate itertools;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
-use std::collections::HashMap;
 use std::error;
 use std::fmt;
-use std::fs::File;
 use std::io;
-use std::io::Read;
-use std::mem;
-use std::path::Path;
 use std::result;
-use std::slice;
-use std::u16;
-
-use byteorder::{LittleEndian, ReadBytesExt};
-use gltf::{Gltf, Material};
-use gltf::accessor::{DataType, Dimensions};
-use gltf::image as gltf_image;
-use gltf::material;
-use gltf::mesh::{Primitive, Semantic};
-use gltf::texture;
 
 pub mod convert;
-use convert::buffer::Buffers;
 
 /// This is the top level Error for this crate.
 #[derive(Debug)]

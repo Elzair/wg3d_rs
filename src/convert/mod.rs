@@ -1,8 +1,6 @@
 use std::env::current_dir;
 use std::error;
 use std::fmt;
-use std::fs::File;
-use std::io;
 use std::path::Path;
 
 use cgmath::{Matrix4, SquareMatrix};
@@ -11,7 +9,6 @@ use gltf_importer::{import, Buffers};
 
 use super::Result;
 
-pub mod buffer;
 pub mod material;
 pub mod mesh;
 pub mod primitive;

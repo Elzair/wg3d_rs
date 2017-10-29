@@ -3,7 +3,6 @@ use std::io;
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::{Matrix4, SquareMatrix};
 use gltf::accessor::{DataType, Dimensions};
-use gltf::scene::Node as GltfNode;
 use gltf::skin::Skin as GltfSkin;
 use gltf_importer::Buffers;
 use itertools::multizip;
@@ -124,6 +123,8 @@ fn get_inverse_bind_matrices<'a>(
                                     c2r0, c2r1, c2r2, c2r3,
                                     c3r0, c3r1, c3r2, c3r3,
                                 ));
+
+                                offset = offset + access.view().stride().unwrap_or(access.size());
                             }
 
                             Ok(ibms)
@@ -138,55 +139,5 @@ fn get_inverse_bind_matrices<'a>(
             Ok(skin.joints().map(|_| Matrix4::<f32>::identity())
                .collect::<Vec<_>>())
         },
-    }
-}
-
-// Retrieve indices of the parent nodes of joint nodes
-fn get_parents<'a>(
-    root: &'a GltfNode,
-    indices: &'a Vec<usize>,
-) -> Vec<usize> {
-    // Get indices from nodes array.
-    let mut pairs = Vec::<(usize, usize)>::new();
-    pairs.push((root.index(), usize::max_value()));
-    get_node(root, &mut pairs);
-
-    // Convert indices from nodes array to joints array (to match up with JOINTS_0 data).
-    let mut parents = Vec::<usize>::with_capacity(pairs.len());
-
-    let mut j = 0;
-
-    for index in indices {
-        for (index2, parent) in pairs.clone() {
-            if *index == index2 {
-                if parent == usize::max_value() {
-                    parents.push(usize::max_value());
-                } else {
-                    // Find index of parent in joints array.
-                    j = 0;
-
-                    for parent2 in indices {
-                        if parent == *parent2 {
-                            parents.push(j);
-                        }
-
-                        j += 1;
-                    }
-                }
-            }
-        }
-    }
-
-    parents
-}
-
-// Recursive helper function
-fn get_node<'a>(
-    node: &'a GltfNode,
-    pair: &'a mut Vec<(usize, usize)>,
-) {
-    for child in node.children() {
-        pair.push((child.index(), node.index()));
-        get_node(&child, pair);
     }
 }

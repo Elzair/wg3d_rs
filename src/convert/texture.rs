@@ -130,7 +130,6 @@ pub fn get<'a>(
 #[cfg(test)]
 mod tests {
     // use super::super::load_gltf;
-    use super::super::buffer::get as get_buffers;
     use super::*;
 
     // #[test]
