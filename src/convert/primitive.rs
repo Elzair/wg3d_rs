@@ -52,11 +52,11 @@ fn get_vertex_attributes<'a>(
     buffers: &'a Buffers,
     has_joints: bool,
 ) -> Result<VertexAttributes> {
-    let positions = get_positions(primitive, buffers)?;
-    let normals = get_normals(primitive, buffers)?;
+    let positions = get_positions(primitive, transform, buffers)?;
+    let normals = get_normals(primitive, transform, buffers)?;
     let texcoords_0 = get_texcoords_0(primitive, buffers)?;
     let texcoords_1 = get_texcoords_1(primitive, buffers);
-    let tangents = get_tangents(primitive, buffers);
+    let tangents = get_tangents(primitive, transform, buffers);
     let bones = get_bones(primitive, buffers, has_joints)?;
 
     Ok(VertexAttributes {
@@ -94,6 +94,7 @@ fn get_bones<'a>(
 
 fn get_positions<'a>(
     primitive: &'a gltf_mesh::Primitive,
+    transform: Matrix4<f32>,
     buffers: &'a Buffers,
 ) -> Result<Vec<[f32; 3]>> {
     let iter = primitive.positions(buffers).ok_or(ConvertError::MissingAttributes)?;
@@ -101,13 +102,14 @@ fn get_positions<'a>(
     Ok(iter.map(|pos| {
         // Transform coordinates from gltf to vulkan by rotating 180deg around X-axis.
         let position = Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
-        let transform = Matrix4::new(
+        let basis_change = Matrix4::new(
             1.0,  0.0,  0.0, 0.0,
             0.0, -1.0,  0.0, 0.0,
             0.0, -0.0, -1.0, 0.0,
             0.0,  0.0,  0.0, 1.0,
         );
-        let pos2 = transform * position;
+        let full_transform = basis_change * transform;
+        let pos2 = full_transform * position;
 
         [pos2.x, pos2.y, pos2.z]
     }).collect::<Vec<_>>())
@@ -115,6 +117,7 @@ fn get_positions<'a>(
 
 fn get_normals<'a>(
     primitive: &'a gltf_mesh::Primitive,
+    transform: Matrix4<f32>,
     buffers: &'a Buffers,
 ) -> Result<Vec<[f32; 3]>> {
     let iter = primitive.normals(buffers).ok_or(ConvertError::MissingAttributes)?;
@@ -122,13 +125,14 @@ fn get_normals<'a>(
     Ok(iter.map(|norm| {
         // Transform coordinates from gltf to vulkan by rotating 180deg around X-axis.
         let normal = Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
-        let transform = Matrix4::new(
+        let basis_change = Matrix4::new(
             1.0,  0.0,  0.0, 0.0,
             0.0, -1.0,  0.0, 0.0,
             0.0, -0.0, -1.0, 0.0,
             0.0,  0.0,  0.0, 1.0,
         );
-        let norm2 = transform * normal;
+        let full_transform = basis_change * transform;
+        let norm2 = full_transform * normal;
 
         [norm2.x, norm2.y, norm2.z]
     }).collect::<Vec<_>>())
@@ -155,19 +159,21 @@ fn get_texcoords_1<'a>(
 
 fn get_tangents<'a>(
     primitive: &'a gltf_mesh::Primitive,
+    transform: Matrix4<f32>,
     buffers: &'a Buffers,
 ) -> Option<Vec<[f32; 4]>> {
     if let Some(iter) = primitive.tangents(buffers) {
         Some(iter.map(|tang| {
             // Transform coordinates from gltf to vulkan by rotating 180deg around X-axis.
             let tangent = Vector4::from(tang);
-            let transform = Matrix4::new(
+            let basis_change = Matrix4::new(
                 1.0,  0.0,  0.0, 0.0,
                 0.0, -1.0,  0.0, 0.0,
                 0.0, -0.0, -1.0, 0.0,
                 0.0,  0.0,  0.0, 1.0,
             );
-            let tang2 = transform * tangent;
+            let full_transform = basis_change * transform;
+            let tang2 = full_transform * tangent;
 
             [tang2.x, tang2.y, tang2.z, tang2.w]
         }).collect::<Vec<_>>())
