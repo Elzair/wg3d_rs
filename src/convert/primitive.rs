@@ -3,16 +3,16 @@ use gltf::mesh as gltf_mesh;
 use gltf_importer::Buffers;
 use gltf_utils::PrimitiveIterators;
 
-use super::super::{Result, Error};
+use super::super::Result;
 use super::ConvertError;
 use super::material::{Material, get as get_material};
 use super::texture::Texture;
 
 // TODO: Remove when gltf-utils is fixed.
-use std::io;
-use std::mem;
-use byteorder::{LittleEndian, ReadBytesExt};
-use gltf::accessor as gltfacc;
+// use std::io;
+// use std::mem;
+// use byteorder::{LittleEndian, ReadBytesExt};
+// use gltf::accessor as gltfacc;
 
 pub struct Primitive {
     material: Material,
@@ -87,8 +87,8 @@ fn get_bones<'a>(
 ) -> Result<Option<Bones>> {
     if has_joints {
         // TODO: Remove when gltf-utils is fixed.
-        // let joints = get_joints(primitive, buffers)?;
-        let joints = get_joints_work_around(primitive, buffers)?;
+        // let joints = get_joints_work_around(primitive, buffers)?;
+        let joints = get_joints(primitive, buffers)?;
         let weights = get_weights(primitive, buffers)?;
 
         Ok(Some(Bones {
@@ -209,68 +209,68 @@ fn get_indices<'a>(
     Ok(iter.collect::<Vec<_>>())
 }
 
-// Ugly hack to workaround a bug in gltf-utils 0.9.2 
-// TODO: Remove when gltf-utils is fixed.
-fn get_joints_work_around<'a>(
-    primitive: &'a gltf_mesh::Primitive,
-    buffers: &'a Buffers
-) -> Result<Vec<[u16; 4]>> {
-    let access = primitive.get(&gltf_mesh::Semantic::Joints(0))
-        .ok_or(ConvertError::MissingAttributes)?;
+// // Ugly hack to work around a bug in gltf-utils 0.9.2 
+// // TODO: Remove when gltf-utils is fixed.
+// fn get_joints_work_around<'a>(
+//     primitive: &'a gltf_mesh::Primitive,
+//     buffers: &'a Buffers
+// ) -> Result<Vec<[u16; 4]>> {
+//     let access = primitive.get(&gltf_mesh::Semantic::Joints(0))
+//         .ok_or(ConvertError::MissingAttributes)?;
 
-    let contents = buffers.view(&access.view()).ok_or(ConvertError::Other)?;
-    let mut offset = access.offset();
+//     let contents = buffers.view(&access.view()).ok_or(ConvertError::Other)?;
+//     let mut offset = access.offset();
 
-    match access.dimensions() {
-        gltfacc::Dimensions::Vec4 => {
-            match access.data_type() {
-                gltfacc::DataType::U8 => {
-                    let size = mem::size_of::<[u8; 4]>();
-                    let mut joints = Vec::<[u16; 4]>::with_capacity(access.count());
+//     match access.dimensions() {
+//         gltfacc::Dimensions::Vec4 => {
+//             match access.data_type() {
+//                 gltfacc::DataType::U8 => {
+//                     let size = mem::size_of::<[u8; 4]>();
+//                     let mut joints = Vec::<[u16; 4]>::with_capacity(access.count());
 
-                    #[allow(unused_variables)]
-                    for i in 0..access.count() {
-                        let sl = &contents[offset..(offset+size)];
-                        let mut cursor = io::Cursor::new(sl);
+//                     #[allow(unused_variables)]
+//                     for i in 0..access.count() {
+//                         let sl = &contents[offset..(offset+size)];
+//                         let mut cursor = io::Cursor::new(sl);
 
-                        let j0 = cursor.read_u8()?;
-                        let jj0 = j0 as u16;
-                        let j1 = cursor.read_u8()?;
-                        let jj1 = j1 as u16;
-                        let j2 = cursor.read_u8()?;
-                        let jj2 = j2 as u16;
-                        let j3 = cursor.read_u8()?;
-                        let jj3 = j3 as u16;
-                        joints.push([jj0, jj1, jj2, jj3]);
+//                         let j0 = cursor.read_u8()?;
+//                         let jj0 = j0 as u16;
+//                         let j1 = cursor.read_u8()?;
+//                         let jj1 = j1 as u16;
+//                         let j2 = cursor.read_u8()?;
+//                         let jj2 = j2 as u16;
+//                         let j3 = cursor.read_u8()?;
+//                         let jj3 = j3 as u16;
+//                         joints.push([jj0, jj1, jj2, jj3]);
 
-                        offset = offset + access.view().stride().unwrap_or(access.size());
-                    }
+//                         offset = offset + access.view().stride().unwrap_or(access.size());
+//                     }
 
-                    Ok(joints)
-                },
-                gltfacc::DataType::U16 => {
-                    let size = mem::size_of::<[u16; 4]>();
-                    let mut joints = Vec::<[u16; 4]>::with_capacity(access.count());
+//                     Ok(joints)
+//                 },
+//                 gltfacc::DataType::U16 => {
+//                     let size = mem::size_of::<[u16; 4]>();
+//                     let mut joints = Vec::<[u16; 4]>::with_capacity(access.count());
 
-                    #[allow(unused_variables)]
-                    for i in 0..access.count() {
-                        let sl = &contents[offset..(offset+size)];
-                        let mut cursor = io::Cursor::new(sl);
+//                     #[allow(unused_variables)]
+//                     for i in 0..access.count() {
+//                         let sl = &contents[offset..(offset+size)];
+//                         let mut cursor = io::Cursor::new(sl);
 
-                        let j0 = cursor.read_u16::<LittleEndian>()?;
-                        let j1 = cursor.read_u16::<LittleEndian>()?;
-                        let j2 = cursor.read_u16::<LittleEndian>()?;
-                        let j3 = cursor.read_u16::<LittleEndian>()?;
-                        joints.push([j0, j1, j2, j3]);
+//                         let j0 = cursor.read_u16::<LittleEndian>()?;
+//                         let j1 = cursor.read_u16::<LittleEndian>()?;
+//                         let j2 = cursor.read_u16::<LittleEndian>()?;
+//                         let j3 = cursor.read_u16::<LittleEndian>()?;
+//                         joints.push([j0, j1, j2, j3]);
 
-                        offset = offset + access.view().stride().unwrap_or(access.size());
-                    }
+//                         offset = offset + access.view().stride().unwrap_or(access.size());
+//                     }
 
-                    Ok(joints)
-                },
-                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
-            }
-        },
-        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
-    }
-}
+//                     Ok(joints)
+//                 },
+//                 _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
+//             }
+//         },
+//         _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
+//     }
+// }

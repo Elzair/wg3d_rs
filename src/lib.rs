@@ -5,6 +5,8 @@ extern crate gltf;
 extern crate gltf_importer;
 extern crate gltf_utils;
 extern crate image;
+#[macro_use]
+extern crate itertools;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
