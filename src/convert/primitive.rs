@@ -80,8 +80,6 @@ fn get_bones<'a>(
     has_joints: bool
 ) -> Result<Option<Bones>> {
     if has_joints {
-        // TODO: Remove when gltf-utils is fixed.
-        // let joints = get_joints_work_around(primitive, buffers)?;
         let joints = get_joints(primitive, buffers)?;
         let weights = get_weights(primitive, buffers)?;
 
