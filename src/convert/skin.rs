@@ -11,28 +11,27 @@ use super::super::{Result, Error};
 use super::ConvertError;
 
 pub struct Skin {
-    root: usize,
+    root_index: usize,
+    transform: Matrix4<f32>,
     joints: Vec<Joint>,
 }
 
 pub fn get<'a>(
     skin: Option<GltfSkin>,
+    transform: Matrix4<f32>,
     buffers: &'a Buffers,
 ) -> Result<Option<Skin>> {
     if skin.is_none() {
         return Ok(None);
     }
+
     let sk = skin.unwrap();
-
-    let root = {
-        let root_node_index = sk.skeleton().ok_or(ConvertError::NoSkeleton)?.index();
-        sk.joints().find(|ref joint| joint.index() == root_node_index).unwrap().index()
-    };
-
+    let root_index = get_root_index(&sk)?;
     let joints = get_joints(&sk, buffers)?;
 
     Ok(Some(Skin {
-        root: root,
+        root_index: root_index,
+        transform: transform,
         joints: joints,
     }))
 }
@@ -63,14 +62,33 @@ fn get_joints<'a>(
         }).collect::<Vec<_>>())
 }
 
-fn get_children_indices<'a>(
+fn get_root_index<'a>(
     skin: &'a GltfSkin,
-) -> Vec<Vec<usize>> {
+) -> Result<usize> {
+    // Get index in nodes array of root joint node.
+    let root_node_index = skin.skeleton().ok_or(ConvertError::NoSkeleton)?.index();
+
+    // Get mapping of `nodes` indices to `joints` indices.
     let len = skin.joints().count();
     let mapping = skin.joints().map(|joint| joint.index())
         .zip((0..len).into_iter())
         .collect::<Vec<_>>();
 
+    let root_index = mapping.iter().find(|&&m| m.0 == root_node_index)
+        .ok_or(ConvertError::NoSkeleton)?.1;
+    Ok(root_index)
+}
+
+fn get_children_indices<'a>(
+    skin: &'a GltfSkin,
+) -> Vec<Vec<usize>> {
+    // Get mapping of `nodes` indices to `joints` indices.
+    let len = skin.joints().count();
+    let mapping = skin.joints().map(|joint| joint.index())
+        .zip((0..len).into_iter())
+        .collect::<Vec<_>>();
+
+    // Find `joints` indices for all child joints.
     skin.joints().map(|joint| {
         joint.children().map(|child| {
             mapping.iter().find(|&&m| m.0 == child.index()).unwrap().1
@@ -115,8 +133,6 @@ fn get_inverse_bind_matrices<'a>(
                                 let c3r2 = cursor.read_f32::<LittleEndian>()?;
                                 let c3r3 = cursor.read_f32::<LittleEndian>()?;
 
-                                // TODO: Determine if we need to multiply this with
-                                // a rotation matrix of 180 degrees around X axis.
                                 ibms.push(Matrix4::new(
                                     c0r0, c0r1, c0r2, c0r3,
                                     c1r0, c1r1, c1r2, c1r3,

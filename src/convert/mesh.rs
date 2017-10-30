@@ -27,7 +27,7 @@ pub fn get<'a>(
     buffers: &'a Buffers,
     textures: &'a Vec<Texture>,
 ) -> Result<Mesh> {
-    let skin = get_skin(skin, buffers)?;
+    let skin = get_skin(skin, transform, buffers)?;
     let has_bones = skin.is_some();
     
     let mut primitives = Vec::<Primitive>::new();
