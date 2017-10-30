@@ -1,4 +1,4 @@
-use cgmath::{Vector4, Matrix4};
+use cgmath::{Vector2, Vector3, Vector4, Matrix4};
 use gltf::mesh as gltf_mesh;
 use gltf_importer::Buffers;
 use gltf_utils::PrimitiveIterators;
@@ -38,11 +38,11 @@ pub fn get<'a>(
 }
 
 pub struct VertexAttributes {
-    positions: Vec<[f32; 3]>,
-    normals: Vec<[f32; 3]>,
-    texcoords_0: Vec<[f32; 2]>,
-    texcoords_1: Option<Vec<[f32; 2]>>,
-    tangents: Option<Vec<[f32; 4]>>,
+    positions: Vec<Vector3<f32>>,
+    normals: Vec<Vector3<f32>>,
+    texcoords_0: Vec<Vector2<f32>>,
+    texcoords_1: Option<Vec<Vector2<f32>>>,
+    tangents: Option<Vec<Vector4<f32>>>,
     bones: Option<Bones>,
 }
 
@@ -70,8 +70,8 @@ fn get_vertex_attributes<'a>(
 }
 
 pub struct Bones {
-    joints: Vec<[u16; 4]>,
-    weights: Vec<[f32; 4]>,
+    joints: Vec<Vector4<u16>>,
+    weights: Vec<Vector4<f32>>,
 }
 
 fn get_bones<'a>(
@@ -96,22 +96,12 @@ fn get_positions<'a>(
     primitive: &'a gltf_mesh::Primitive,
     transform: Matrix4<f32>,
     buffers: &'a Buffers,
-) -> Result<Vec<[f32; 3]>> {
+) -> Result<Vec<Vector3<f32>>> {
     let iter = primitive.positions(buffers).ok_or(ConvertError::MissingAttributes)?;
 
     Ok(iter.map(|pos| {
-        // Transform coordinates from gltf to vulkan by rotating 180deg around X-axis.
-        let position = Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
-        let basis_change = Matrix4::new(
-            1.0,  0.0,  0.0, 0.0,
-            0.0, -1.0,  0.0, 0.0,
-            0.0, -0.0, -1.0, 0.0,
-            0.0,  0.0,  0.0, 1.0,
-        );
-        let full_transform = basis_change * transform;
-        let pos2 = full_transform * position;
-
-        [pos2.x, pos2.y, pos2.z]
+        let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
+        position.truncate()
     }).collect::<Vec<_>>())
 }
 
@@ -119,40 +109,34 @@ fn get_normals<'a>(
     primitive: &'a gltf_mesh::Primitive,
     transform: Matrix4<f32>,
     buffers: &'a Buffers,
-) -> Result<Vec<[f32; 3]>> {
+) -> Result<Vec<Vector3<f32>>> {
     let iter = primitive.normals(buffers).ok_or(ConvertError::MissingAttributes)?;
 
     Ok(iter.map(|norm| {
-        // Transform coordinates from gltf to vulkan by rotating 180deg around X-axis.
-        let normal = Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
-        let basis_change = Matrix4::new(
-            1.0,  0.0,  0.0, 0.0,
-            0.0, -1.0,  0.0, 0.0,
-            0.0, -0.0, -1.0, 0.0,
-            0.0,  0.0,  0.0, 1.0,
-        );
-        let full_transform = basis_change * transform;
-        let norm2 = full_transform * normal;
-
-        [norm2.x, norm2.y, norm2.z]
+        let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
+        normal.truncate()
     }).collect::<Vec<_>>())
 }
 
 fn get_texcoords_0<'a>(
     primitive: &'a gltf_mesh::Primitive,
     buffers: &'a Buffers,
-) -> Result<Vec<[f32; 2]>> {
+) -> Result<Vec<Vector2<f32>>> {
     let iter = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::MissingAttributes)?;
 
-    Ok(iter.collect::<Vec<_>>())
+    Ok(iter.map(|tx0| {
+        Vector2::<f32>::from(tx0)
+    }).collect::<Vec<_>>())
 }
 
 fn get_texcoords_1<'a>(
     primitive: &'a gltf_mesh::Primitive,
     buffers: &'a Buffers,
-) -> Option<Vec<[f32; 2]>> {
+) -> Option<Vec<Vector2<f32>>> {
     if let Some(iter) = primitive.tex_coords_f32(1, buffers) {
-        Some(iter.collect::<Vec<_>>())
+        Some(iter.map(|tx1| {
+            Vector2::from(tx1)
+        }).collect::<Vec<_>>())
     } else { None }
 
 }
@@ -161,21 +145,10 @@ fn get_tangents<'a>(
     primitive: &'a gltf_mesh::Primitive,
     transform: Matrix4<f32>,
     buffers: &'a Buffers,
-) -> Option<Vec<[f32; 4]>> {
+) -> Option<Vec<Vector4<f32>>> {
     if let Some(iter) = primitive.tangents(buffers) {
         Some(iter.map(|tang| {
-            // Transform coordinates from gltf to vulkan by rotating 180deg around X-axis.
-            let tangent = Vector4::from(tang);
-            let basis_change = Matrix4::new(
-                1.0,  0.0,  0.0, 0.0,
-                0.0, -1.0,  0.0, 0.0,
-                0.0, -0.0, -1.0, 0.0,
-                0.0,  0.0,  0.0, 1.0,
-            );
-            let full_transform = basis_change * transform;
-            let tang2 = full_transform * tangent;
-
-            [tang2.x, tang2.y, tang2.z, tang2.w]
+            transform * Vector4::from(tang)
         }).collect::<Vec<_>>())
     } else { None }
 }
@@ -183,19 +156,23 @@ fn get_tangents<'a>(
 fn get_joints<'a>(
     primitive: &'a gltf_mesh::Primitive,
     buffers: &'a Buffers,
-) -> Result<Vec<[u16; 4]>> {
+) -> Result<Vec<Vector4<u16>>> {
     let iter = primitive.joints_u16(0, buffers).ok_or(ConvertError::MissingAttributes)?;
 
-    Ok(iter.collect::<Vec<_>>())
+    Ok(iter.map(|joint| {
+        Vector4::from(joint)
+    }).collect::<Vec<_>>())
 }
 
 fn get_weights<'a>(
     primitive: &'a gltf_mesh::Primitive,
     buffers: &'a Buffers,
-) -> Result<Vec<[f32; 4]>> {
+) -> Result<Vec<Vector4<f32>>> {
     let iter = primitive.weights_f32(0, buffers).ok_or(ConvertError::MissingAttributes)?;
 
-    Ok(iter.collect::<Vec<_>>())
+    Ok(iter.map(|weight| {
+        Vector4::from(weight)
+    }).collect::<Vec<_>>())
 }
 
 fn get_indices<'a>(
