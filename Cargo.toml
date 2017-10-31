@@ -11,7 +11,8 @@ repository = "https://github.com/Elzair/wg3d_rs"
 keywords = ["wg3d", "3d", "model"]
 categories = ["game-engines"]
 
-# [features]
+[features]
+default = ["gltf/names"]
 # binaries = ["clap"]
 
 # [[bin]]

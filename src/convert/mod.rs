@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::Path;
 
 use cgmath::{Matrix4, SquareMatrix};
-use gltf::Node;
+use gltf::{Scene, Node};
 use gltf_importer::{import, Buffers};
 
 use super::Result;
@@ -15,8 +15,12 @@ pub mod primitive;
 pub mod skin;
 pub mod texture;
 
+use self::mesh::{Mesh, get as get_mesh};
+use self::skin::{Skin, get as get_skins};
+use self::texture::{Texture, get as get_textures};
+
 pub struct Model {
-    mesh: mesh::Mesh,
+    mesh: Mesh,
 }
 
 pub fn get<P: AsRef<Path>>(path: P) -> Result<Vec<Model>> {
@@ -24,12 +28,25 @@ pub fn get<P: AsRef<Path>>(path: P) -> Result<Vec<Model>> {
     let cwd = current_dir()?;
     let parent = path.as_ref().parent().unwrap_or(&cwd);
     let (gltf, buffers) = import(&path)?;
-    let textures = texture::get(&parent, &gltf, &buffers)?;
+    let textures = get_textures(&parent, &gltf, &buffers)?;
 
     // Retrieve default scene from gltf.
     let scene = gltf.default_scene().ok_or(ConvertError::NoDefaultScene)?;
 
+    // Retrieve skins.
+    let skins = get_skins(&gltf, &buffers)?;
+
     // Retrieve models.
+    let models = get_models(&scene, &buffers, &textures)?;
+
+    Ok(models)
+}
+
+pub fn get_models<'a>(
+    scene: &'a Scene,
+    buffers: &'a Buffers,
+    textures: &'a Vec<Texture>,
+) -> Result<Vec<Model>> {
     let mut models = Vec::<Model>::new();
 
     for root_node in scene.nodes() {
@@ -37,8 +54,8 @@ pub fn get<P: AsRef<Path>>(path: P) -> Result<Vec<Model>> {
             &root_node,
             Matrix4::identity(),
             &mut models,
-            &buffers,
-            &textures
+            buffers,
+            textures
         )?;
     }
 
@@ -58,7 +75,9 @@ fn get_models_helper<'a>(
 
     // Add model if mesh is present.
     if let Some(mesh) = node.mesh() {
-        let mesh = mesh::get(&mesh, node.skin(), transform, buffers, textures)?;
+        let name = node.name().ok_or(ConvertError::NoName)?;
+        let has_bones = node.skin().is_some();
+        let mesh = get_mesh(&mesh, name, transform, has_bones, buffers, textures)?;
         models.push(Model { mesh: mesh });
     }
     
@@ -89,6 +108,8 @@ pub enum ConvertError {
     NoSkeleton,
     /// No default scene present
     NoDefaultScene,
+    /// No name for a mesh, skin, or animation
+    NoName,
     /// Something weird
     Other,
 }
@@ -120,6 +141,9 @@ impl fmt::Display for ConvertError {
             ConvertError::NoDefaultScene => {
                 write!(fmt, "No default scene present")
             },
+            ConvertError::NoName => {
+                write!(fmt, "No name for a mesh, skin, or animation")
+            },
             ConvertError::Other => {
                 write!(fmt, "Something weird happened")
             },
@@ -137,6 +161,7 @@ impl error::Error for ConvertError {
         static MULTIPLE_TEXTURES_IN_BUFFER: &'static str = "Multiple textures share binary buffer";
         static NO_SKELETON: &'static str = "No specified root node of skeleton for a skin";
         static NO_DEFAULT_SCENE: &'static str = "No default scene present";
+        static NO_NAME: &'static str = "No name for a mesh, skin, or animation";
         static OTHER: &'static str = "Something weird happened";
 
         match *self {
@@ -163,6 +188,9 @@ impl error::Error for ConvertError {
             },
             ConvertError::NoDefaultScene => {
                 NO_DEFAULT_SCENE
+            },
+            ConvertError::NoName => {
+                NO_NAME
             },
             ConvertError::Other => {
                 OTHER

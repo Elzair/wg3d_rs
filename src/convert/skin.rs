@@ -2,6 +2,7 @@ use std::io;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::{Matrix4, SquareMatrix};
+use gltf::Gltf;
 use gltf::accessor::{DataType, Dimensions};
 use gltf::skin::Skin as GltfSkin;
 use gltf_importer::Buffers;
@@ -11,55 +12,38 @@ use super::super::{Result, Error};
 use super::ConvertError;
 
 pub struct Skin {
+    name: String,
     root_index: usize,
-    transform: Matrix4<f32>,
     joints: Vec<Joint>,
 }
 
 pub fn get<'a>(
-    skin: Option<GltfSkin>,
-    transform: Matrix4<f32>,
+    gltf: &'a Gltf,
     buffers: &'a Buffers,
-) -> Result<Option<Skin>> {
-    if skin.is_none() {
-        return Ok(None);
+) -> Result<Vec<Skin>> {
+    let mut skins = Vec::<Skin>::with_capacity(gltf.skins().len());
+
+    for sk in gltf.skins() {
+        let skin = get_skin(sk, buffers)?;
+        skins.push(skin);
     }
 
-    let sk = skin.unwrap();
-    let root_index = get_root_index(&sk)?;
-    let joints = get_joints(&sk, buffers)?;
-
-    Ok(Some(Skin {
-        root_index: root_index,
-        transform: transform,
-        joints: joints,
-    }))
+    Ok(skins)
 }
 
-pub struct Joint {
-    local_transform: Matrix4<f32>,
-    inverse_bind_matrix: Matrix4<f32>,
-    children: Vec<usize>,
-}
-
-fn get_joints<'a>(
-    skin: &'a GltfSkin,
+fn get_skin<'a>(
+    skin: GltfSkin,
     buffers: &'a Buffers,
-) -> Result<Vec<Joint>> {
-    let transforms = skin.joints().map(|joint| {
-        Matrix4::<f32>::from(joint.transform().matrix())
-    }).collect::<Vec<_>>();
-    let inverse_bind_matrices = get_inverse_bind_matrices(&skin, buffers)?;
-    let child_indices = get_children_indices(skin);
+) -> Result<Skin> {
+    let name = skin.name().ok_or(ConvertError::NoName)?;
+    let root_index = get_root_index(&skin)?;
+    let joints = get_joints(&skin, buffers)?;
 
-    Ok(multizip((transforms, inverse_bind_matrices, child_indices))
-        .map(|(transform, ibm, children)| {
-            Joint {
-                local_transform: transform,
-                inverse_bind_matrix: ibm,
-                children: children,
-            }
-        }).collect::<Vec<_>>())
+    Ok(Skin {
+        name: String::from(name),
+        root_index: root_index,
+        joints: joints,
+    })
 }
 
 fn get_root_index<'a>(
@@ -77,6 +61,48 @@ fn get_root_index<'a>(
     let root_index = mapping.iter().find(|&&m| m.0 == root_node_index)
         .ok_or(ConvertError::NoSkeleton)?.1;
     Ok(root_index)
+}
+
+pub struct Joint {
+    name: String,
+    local_transform: Matrix4<f32>,
+    inverse_bind_matrix: Matrix4<f32>,
+    children: Vec<usize>,
+}
+
+fn get_joints<'a>(
+    skin: &'a GltfSkin,
+    buffers: &'a Buffers,
+) -> Result<Vec<Joint>> {
+    let names = get_joint_names(skin)?;
+    let transforms = skin.joints().map(|joint| {
+        Matrix4::<f32>::from(joint.transform().matrix())
+    }).collect::<Vec<_>>();
+    let inverse_bind_matrices = get_inverse_bind_matrices(&skin, buffers)?;
+    let child_indices = get_children_indices(skin);
+
+    Ok(multizip((names, transforms, inverse_bind_matrices, child_indices))
+        .map(|(name, transform, inverse_bind_matrix, children)| {
+            Joint {
+                name: name,
+                local_transform: transform,
+                inverse_bind_matrix: inverse_bind_matrix,
+                children: children,
+            }
+        }).collect::<Vec<_>>())
+}
+
+fn get_joint_names<'a>(
+    skin: &'a GltfSkin,
+) -> Result<Vec<String>> {
+    let mut names = Vec::<String>::with_capacity(skin.joints().count());
+
+    for joint in skin.joints() {
+        let name = joint.name().ok_or(ConvertError::NoName)?;
+        names.push(String::from(name));
+    }
+
+    Ok(names)
 }
 
 fn get_children_indices<'a>(

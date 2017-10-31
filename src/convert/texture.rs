@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::Path;
 
 use gltf::{Gltf, texture};
@@ -11,6 +10,7 @@ use super::ConvertError;
 
 #[derive(Clone, Debug)]
 pub struct Texture {
+    name: String,
     mag_filter: MagFilter,
     min_filter: MinFilter,
     wrap_s_mode: WrappingMode,
@@ -60,6 +60,7 @@ pub fn get<'a>(
     let mut textures = Vec::<Texture>::with_capacity(gltf.textures().len());
     
     for texture in gltf.textures() {
+        let name = texture.name().ok_or(ConvertError::NoName)?;
         let sampler = texture.sampler();
         let mag_filter = match sampler.mag_filter() {
             Some(texture::MagFilter::Linear) => MagFilter::Linear,
@@ -112,6 +113,7 @@ pub fn get<'a>(
 
         textures.push(
             Texture {
+                name: String::from(name),
                 mag_filter: mag_filter,
                 min_filter: min_filter,
                 wrap_s_mode: wrap_s,

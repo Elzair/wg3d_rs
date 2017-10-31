@@ -17,9 +17,9 @@ pub struct Primitive {
 pub fn get<'a>(
     primitive: &'a gltf_mesh::Primitive,
     transform: Matrix4<f32>,
+    has_bones: bool,
     buffers: &'a Buffers,
     textures: &'a Vec<Texture>,
-    has_bones: bool,
 ) -> Result<Primitive> {
     let material = get_material(primitive, textures)?;
     let vertex_attributes = get_vertex_attributes(
