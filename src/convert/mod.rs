@@ -98,12 +98,8 @@ pub enum ConvertError {
     UnsupportedDataType,
     /// Unsupported dimensions
     UnsupportedDimensions,
-    /// Invalid buffer length
-    InvalidBufferLength,
     /// Image buffer not present
     MissingImageBuffer,
-    /// Multiple textures share binary buffer
-    MultipleTexturesInBuffer,
     /// No specified root node of skeleton for a skin
     NoSkeleton,
     /// No default scene present
@@ -126,14 +122,8 @@ impl fmt::Display for ConvertError {
             ConvertError::UnsupportedDimensions => {
                 write!(fmt, "Primitive attribute using unsupported dimensions")
             },
-            ConvertError::InvalidBufferLength => {
-                write!(fmt, "Invalid buffer length")
-            },
             ConvertError::MissingImageBuffer => {
                 write!(fmt, "Missing image buffer")
-            },
-            ConvertError::MultipleTexturesInBuffer => {
-                write!(fmt, "Multiple textures share binary buffer")
             },
             ConvertError::NoSkeleton => {
                 write!(fmt, "No specified root node of skeleton for a skin")
@@ -156,9 +146,7 @@ impl error::Error for ConvertError {
         static MISSING_ATTRIBUTES: &'static str = "Primitive missing required attributes";
         static UNSUPPORTED_DATA_TYPE: &'static str = "Primitive attribute using unsupported data type";
         static UNSUPPORTED_DIMENSIONS: &'static str = "Primitive attribute using unsupported dimensions";
-        static INVALID_BUFFER_LENGTH: &'static str = "Invalid buffer length";
         static MISSING_IMAGE_BUFFER: &'static str = "Missing image buffer";
-        static MULTIPLE_TEXTURES_IN_BUFFER: &'static str = "Multiple textures share binary buffer";
         static NO_SKELETON: &'static str = "No specified root node of skeleton for a skin";
         static NO_DEFAULT_SCENE: &'static str = "No default scene present";
         static NO_NAME: &'static str = "No name for a mesh, skin, or animation";
@@ -174,14 +162,8 @@ impl error::Error for ConvertError {
             ConvertError::UnsupportedDimensions => {
                 UNSUPPORTED_DIMENSIONS
             },
-            ConvertError::InvalidBufferLength => {
-                INVALID_BUFFER_LENGTH
-            },
             ConvertError::MissingImageBuffer => {
                 MISSING_IMAGE_BUFFER
-            },
-            ConvertError::MultipleTexturesInBuffer => {
-                MULTIPLE_TEXTURES_IN_BUFFER
             },
             ConvertError::NoSkeleton => {
                 NO_SKELETON
