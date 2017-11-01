@@ -57,9 +57,7 @@ pub fn get<'a>(
     gltf: &'a Gltf,
     buffers: &'a Buffers
 ) -> Result<Vec<Texture>> {
-    let mut textures = Vec::<Texture>::with_capacity(gltf.textures().len());
-    
-    for texture in gltf.textures() {
+    gltf.textures().map(|texture| {
         let name = texture.name().ok_or(ConvertError::NoName)?;
         let sampler = texture.sampler();
         let mag_filter = match sampler.mag_filter() {
@@ -111,22 +109,18 @@ pub fn get<'a>(
             &image::DynamicImage::ImageRgba8(_) => Format::RgbaImage,
         };
 
-        textures.push(
-            Texture {
-                name: String::from(name),
-                mag_filter: mag_filter,
-                min_filter: min_filter,
-                wrap_s_mode: wrap_s,
-                wrap_t_mode: wrap_t,
-                width: img.width(),
-                height: img.height(),
-                format: format,
-                contents: img.raw_pixels(),
-            }
-        );
-    }
-
-    Ok(textures)
+        Ok(Texture {
+            name: String::from(name),
+            mag_filter: mag_filter,
+            min_filter: min_filter,
+            wrap_s_mode: wrap_s,
+            wrap_t_mode: wrap_t,
+            width: img.width(),
+            height: img.height(),
+            format: format,
+            contents: img.raw_pixels(),
+        })
+    }).collect()
 }
 
 #[cfg(test)]
