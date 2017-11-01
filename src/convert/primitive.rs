@@ -2,15 +2,16 @@ use cgmath::{Vector2, Vector3, Vector4, Matrix4};
 use gltf::mesh as gltf_mesh;
 use gltf_importer::Buffers;
 use gltf_utils::PrimitiveIterators;
+use itertools::multizip;
 
-use super::super::Result;
+use super::super::{Result, Error};
 use super::ConvertError;
 use super::material::{Material, get as get_material};
 use super::texture::Texture;
 
 pub struct Primitive {
     material: Material,
-    vertex_attributes: VertexAttributes,
+    attributes: Attributes,
     indices: Vec<u32>,
 }
 
@@ -22,7 +23,7 @@ pub fn get<'a>(
     textures: &'a Vec<Texture>,
 ) -> Result<Primitive> {
     let material = get_material(primitive, textures)?;
-    let vertex_attributes = get_vertex_attributes(
+    let attributes = get_attributes(
         primitive,
         transform,
         buffers,
@@ -32,41 +33,316 @@ pub fn get<'a>(
 
     Ok(Primitive {
         material: material,
-        vertex_attributes: vertex_attributes,
+        attributes: attributes,
         indices: indices,
     })
 }
 
-pub struct VertexAttributes {
-    positions: Vec<Vector3<f32>>,
-    normals: Vec<Vector3<f32>>,
-    texcoords_0: Vec<Vector2<f32>>,
-    texcoords_1: Option<Vec<Vector2<f32>>>,
-    tangents: Option<Vec<Vector4<f32>>>,
-    bones: Option<Bones>,
+pub enum Attributes {
+    NoTex1NoTangentNoBones(Vec<VertexNoTex1NoTangentNoBones>),
+    NoTex1NoTangentBones(Vec<VertexNoTex1NoTangentBones>),
+    NoTex1TangentNoBones(Vec<VertexNoTex1TangentNoBones>),
+    NoTex1TangentBones(Vec<VertexNoTex1TangentBones>),
+    Tex1NoTangentNoBones(Vec<VertexTex1NoTangentNoBones>),
+    Tex1NoTangentBones(Vec<VertexTex1NoTangentBones>),
+    Tex1TangentNoBones(Vec<VertexTex1TangentNoBones>),
+    Tex1TangentBones(Vec<VertexTex1TangentBones>),
 }
 
-fn get_vertex_attributes<'a>(
+fn get_attributes<'a>(
     primitive: &'a gltf_mesh::Primitive,
     transform: Matrix4<f32>,
     buffers: &'a Buffers,
     has_joints: bool,
-) -> Result<VertexAttributes> {
-    let positions = get_positions(primitive, transform, buffers)?;
-    let normals = get_normals(primitive, transform, buffers)?;
-    let texcoords_0 = get_texcoords_0(primitive, buffers)?;
-    let texcoords_1 = get_texcoords_1(primitive, buffers);
-    let tangents = get_tangents(primitive, transform, buffers);
-    let bones = get_bones(primitive, buffers, has_joints)?;
+) -> Result<Attributes> {
+    // Common iterators and their number of elements
+    let pos_num = primitive.positions(buffers).ok_or(ConvertError::MissingAttributes)?.count();
+    let pos_it = primitive.positions(buffers).ok_or(ConvertError::MissingAttributes)?;
+    let nor_num = primitive.normals(buffers).ok_or(ConvertError::MissingAttributes)?.count();
+    let nor_it = primitive.normals(buffers).ok_or(ConvertError::MissingAttributes)?;
+    let tx0_num = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::MissingAttributes)?.count();
+    let tx0_it = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::Other)?;
 
-    Ok(VertexAttributes {
-        positions: positions,
-        normals: normals,
-        texcoords_0: texcoords_0,
-        texcoords_1: texcoords_1,
-        tangents: tangents,
-        bones: bones,
-    })
+    let has_tangents = primitive.tangents(buffers).is_some();
+    let has_texcoords_1 = primitive.tex_coords_f32(1, buffers).is_some();
+
+    if has_texcoords_1 && has_tangents && has_joints {
+        let tx1_num = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::Other)?.count();
+        let tx1_it = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::Other)?;
+        let tan_num = primitive.tangents(buffers).ok_or(ConvertError::Other)?.count();
+        let tan_it = primitive.tangents(buffers).ok_or(ConvertError::Other)?;
+        let id0_num = primitive.joints_u16(0, buffers).ok_or(ConvertError::Other)?.count();
+        let id0_it = primitive.joints_u16(0, buffers).ok_or(ConvertError::Other)?;
+        let wt0_num = primitive.weights_f32(0, buffers).ok_or(ConvertError::Other)?.count();
+        let wt0_it = primitive.weights_f32(0, buffers).ok_or(ConvertError::Other)?;
+
+        // Test all vertex attributes have the same number of elements.
+        if pos_num == nor_num && nor_num == tx0_num && tx0_num == tx1_num && tx1_num == tan_num && tan_num == id0_num && id0_num == wt0_num {
+            
+            Ok(Attributes::Tex1TangentBones(multizip((pos_it, nor_it, tx0_it, tx1_it, tan_it, id0_it, wt0_it))
+               .map(|(pos, norm, tx0, tx1, tang, ids, wts)| {
+                   // Bake in any transforms.
+                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
+                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
+                   let tangent = transform * Vector4::<f32>::from(tang);
+                   
+                   VertexTex1TangentBones {
+                       position: position.truncate(),
+                       normal: normal.truncate(),
+                       texcoord0: Vector2::<f32>::from(tx0),
+                       texcoord1: Vector2::<f32>::from(tx1),
+                       tangent: tangent,
+                       joints: Vector4::<u16>::from(ids),
+                       weights: Vector4::<f32>::from(wts),
+                   }
+               }).collect()))
+        } else {
+            Err(Error::Convert(ConvertError::Other))
+        }
+    } else if has_texcoords_1 && has_tangents && !has_joints {
+        let tx1_num = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::Other)?.count();
+        let tx1_it = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::Other)?;
+        let tan_num = primitive.tangents(buffers).ok_or(ConvertError::Other)?.count();
+        let tan_it = primitive.tangents(buffers).ok_or(ConvertError::Other)?;
+
+        // Test all vertex attributes have the same number of elements.
+        if pos_num == nor_num && nor_num == tx0_num && tx0_num == tx1_num && tx1_num == tan_num {
+            
+            Ok(Attributes::Tex1TangentNoBones(multizip((pos_it, nor_it, tx0_it, tx1_it, tan_it))
+               .map(|(pos, norm, tx0, tx1, tang)| {
+                   // Bake in any transforms.
+                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
+                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
+                   let tangent = transform * Vector4::<f32>::from(tang);
+                   
+                   VertexTex1TangentNoBones {
+                       position: position.truncate(),
+                       normal: normal.truncate(),
+                       texcoord0: Vector2::<f32>::from(tx0),
+                       texcoord1: Vector2::<f32>::from(tx1),
+                       tangent: tangent,
+                   }
+               }).collect()))
+        } else {
+            Err(Error::Convert(ConvertError::Other))
+        }
+    } else if has_texcoords_1 && !has_tangents && has_joints {
+        let tx1_num = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::Other)?.count();
+        let tx1_it = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::Other)?;
+        let id0_num = primitive.joints_u16(0, buffers).ok_or(ConvertError::Other)?.count();
+        let id0_it = primitive.joints_u16(0, buffers).ok_or(ConvertError::Other)?;
+        let wt0_num = primitive.weights_f32(0, buffers).ok_or(ConvertError::Other)?.count();
+        let wt0_it = primitive.weights_f32(0, buffers).ok_or(ConvertError::Other)?;
+        
+        // Ensure all vertex attributes have the same number of elements.
+        if pos_num == nor_num && nor_num == tx0_num && tx0_num == tx1_num && tx1_num == id0_num && id0_num == wt0_num {
+            
+            Ok(Attributes::Tex1NoTangentBones(multizip((pos_it, nor_it, tx0_it, tx1_it, id0_it, wt0_it))
+               .map(|(pos, norm, tx0, tx1, ids, wts)| {
+                   // Bake in any transforms.
+                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
+                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
+                   
+                   VertexTex1NoTangentBones {
+                       position: position.truncate(),
+                       normal: normal.truncate(),
+                       texcoord0: Vector2::<f32>::from(tx0),
+                       texcoord1: Vector2::<f32>::from(tx1),
+                       joints: Vector4::<u16>::from(ids),
+                       weights: Vector4::<f32>::from(wts),
+                   }
+               }).collect()))
+        } else {
+            Err(Error::Convert(ConvertError::Other))
+        }
+    } else if has_texcoords_1 && !has_tangents && !has_joints {
+        let tx1_num = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::Other)?.count();
+        let tx1_it = primitive.tex_coords_f32(0, buffers).ok_or(ConvertError::Other)?;
+        
+        // Ensure all vertex attributes have the same number of elements.
+        if pos_num == nor_num && nor_num == tx0_num && tx0_num == tx1_num {
+            
+            Ok(Attributes::Tex1NoTangentNoBones(multizip((pos_it, nor_it, tx0_it, tx1_it))
+               .map(|(pos, norm, tx0, tx1)| {
+                   // Bake in any transforms.
+                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
+                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
+                   
+                   VertexTex1NoTangentNoBones {
+                       position: position.truncate(),
+                       normal: normal.truncate(),
+                       texcoord0: Vector2::<f32>::from(tx0),
+                       texcoord1: Vector2::<f32>::from(tx1),
+                   }
+               }).collect()))
+        } else {
+            Err(Error::Convert(ConvertError::Other))
+        }
+
+    } else if !has_texcoords_1 && has_tangents && has_joints {
+        let tan_num = primitive.tangents(buffers).ok_or(ConvertError::Other)?.count();
+        let tan_it = primitive.tangents(buffers).ok_or(ConvertError::Other)?;
+        let id0_num = primitive.joints_u16(0, buffers).ok_or(ConvertError::Other)?.count();
+        let id0_it = primitive.joints_u16(0, buffers).ok_or(ConvertError::Other)?;
+        let wt0_num = primitive.weights_f32(0, buffers).ok_or(ConvertError::Other)?.count();
+        let wt0_it = primitive.weights_f32(0, buffers).ok_or(ConvertError::Other)?;
+        
+        // Ensure all vertex attributes have the same number of elements.
+        if pos_num == nor_num && nor_num == tx0_num && tx0_num == tan_num && tan_num == id0_num && id0_num == wt0_num {
+            
+            Ok(Attributes::NoTex1TangentBones(multizip((pos_it, nor_it, tx0_it, tan_it, id0_it, wt0_it))
+               .map(|(pos, norm, tx0, tang, ids, wts)| {
+                   // Bake in any transforms.
+                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
+                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
+                   let tangent = transform * Vector4::<f32>::from(tang);
+                   
+                   VertexNoTex1TangentBones {
+                       position: position.truncate(),
+                       normal: normal.truncate(),
+                       texcoord0: Vector2::<f32>::from(tx0),
+                       tangent: tangent,
+                       joints: Vector4::<u16>::from(ids),
+                       weights: Vector4::<f32>::from(wts),
+                   }
+               }).collect()))
+        } else {
+            Err(Error::Convert(ConvertError::Other))
+        }
+
+    } else if !has_texcoords_1 && has_tangents && !has_joints {
+        let tan_num = primitive.tangents(buffers).ok_or(ConvertError::Other)?.count();
+        let tan_it = primitive.tangents(buffers).ok_or(ConvertError::Other)?;
+        
+        // Ensure all vertex attributes have the same number of elements.
+        if pos_num == nor_num && nor_num == tx0_num && tx0_num == tan_num {
+            
+            Ok(Attributes::NoTex1TangentNoBones(multizip((pos_it, nor_it, tx0_it, tan_it))
+               .map(|(pos, norm, tx0, tang)| {
+                   // Bake in any transforms.
+                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
+                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
+                   let tangent = transform * Vector4::<f32>::from(tang);
+
+                   VertexNoTex1TangentNoBones {
+                       position: position.truncate(),
+                       normal: normal.truncate(),
+                       texcoord0: Vector2::<f32>::from(tx0),
+                       tangent: tangent,
+                   }
+               }).collect()))
+        } else {
+            Err(Error::Convert(ConvertError::Other))
+        }
+
+    } else if !has_texcoords_1 && !has_tangents && has_joints {
+        let id0_num = primitive.joints_u16(0, buffers).ok_or(ConvertError::Other)?.count();
+        let id0_it = primitive.joints_u16(0, buffers).ok_or(ConvertError::Other)?;
+        let wt0_num = primitive.weights_f32(0, buffers).ok_or(ConvertError::Other)?.count();
+        let wt0_it = primitive.weights_f32(0, buffers).ok_or(ConvertError::Other)?;
+        
+        // Ensure all vertex attributes have the same number of elements.
+        if pos_num == nor_num && nor_num == tx0_num && tx0_num == id0_num && id0_num == wt0_num {
+            
+            Ok(Attributes::NoTex1NoTangentBones(multizip((pos_it, nor_it, tx0_it, id0_it, wt0_it))
+               .map(|(pos, norm, tx0, ids, wts)| {
+                   // Bake in any transforms.
+                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
+                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
+                   VertexNoTex1NoTangentBones {
+                       position: position.truncate(),
+                       normal: normal.truncate(),
+                       texcoord0: Vector2::<f32>::from(tx0),
+                       joints: Vector4::<u16>::from(ids),
+                       weights: Vector4::<f32>::from(wts),
+                   }
+               }).collect()))
+        } else {
+            Err(Error::Convert(ConvertError::Other))
+        }
+    } else {
+        // Test all vertex attributes have the same number of elements.
+        if pos_num == nor_num && nor_num == tx0_num {
+            
+            Ok(Attributes::NoTex1NoTangentNoBones(multizip((pos_it, nor_it, tx0_it))
+               .map(|(pos, norm, tx0)| {
+                   // Bake in any transforms.
+                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
+                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
+                   VertexNoTex1NoTangentNoBones {
+                       position: position.truncate(),
+                       normal: normal.truncate(),
+                       texcoord0: Vector2::<f32>::from(tx0),
+                   }
+               }).collect()))
+        } else {
+            Err(Error::Convert(ConvertError::Other))
+        }
+    }
+}
+
+pub struct VertexNoTex1NoTangentNoBones {
+    position: Vector3<f32>,
+    normal: Vector3<f32>,
+    texcoord0: Vector2<f32>,
+}
+
+pub struct VertexNoTex1NoTangentBones {
+    position: Vector3<f32>,
+    normal: Vector3<f32>,
+    texcoord0: Vector2<f32>,
+    joints: Vector4<u16>,
+    weights: Vector4<f32>,
+}
+
+pub struct VertexNoTex1TangentNoBones {
+    position: Vector3<f32>,
+    normal: Vector3<f32>,
+    texcoord0: Vector2<f32>,
+    tangent: Vector4<f32>,
+}
+
+pub struct VertexNoTex1TangentBones {
+    position: Vector3<f32>,
+    normal: Vector3<f32>,
+    texcoord0: Vector2<f32>,
+    tangent: Vector4<f32>,
+    joints: Vector4<u16>,
+    weights: Vector4<f32>,
+}
+
+pub struct VertexTex1NoTangentNoBones {
+    position: Vector3<f32>,
+    normal: Vector3<f32>,
+    texcoord0: Vector2<f32>,
+    texcoord1: Vector2<f32>,
+}
+
+pub struct VertexTex1NoTangentBones {
+    position: Vector3<f32>,
+    normal: Vector3<f32>,
+    texcoord0: Vector2<f32>,
+    texcoord1: Vector2<f32>,
+    joints: Vector4<u16>,
+    weights: Vector4<f32>,
+}
+
+pub struct VertexTex1TangentNoBones {
+    position: Vector3<f32>,
+    normal: Vector3<f32>,
+    texcoord0: Vector2<f32>,
+    texcoord1: Vector2<f32>,
+    tangent: Vector4<f32>,
+}
+
+pub struct VertexTex1TangentBones {
+    position: Vector3<f32>,
+    normal: Vector3<f32>,
+    texcoord0: Vector2<f32>,
+    texcoord1: Vector2<f32>,
+    tangent: Vector4<f32>,
+    joints: Vector4<u16>,
+    weights: Vector4<f32>,
 }
 
 pub struct Bones {
