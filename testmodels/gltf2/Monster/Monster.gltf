@@ -779,6 +779,7 @@
     ],
     "animations": [
         {
+            "name": "animation0",
             "channels": [
                 {
                     "sampler": 0,
@@ -821,6 +822,7 @@
             ]
         },
         {
+            "name": "animation1",
             "channels": [
                 {
                     "sampler": 0,
@@ -863,6 +865,7 @@
             ]
         },
         {
+            "name": "animation2",
             "channels": [
                 {
                     "sampler": 0,
@@ -905,6 +908,7 @@
             ]
         },
         {
+            "name": "animation3",
             "channels": [
                 {
                     "sampler": 0,
@@ -947,6 +951,7 @@
             ]
         },
         {
+            "name": "animation4",
             "channels": [
                 {
                     "sampler": 0,
@@ -989,6 +994,7 @@
             ]
         },
         {
+            "name": "animation5",
             "channels": [
                 {
                     "sampler": 0,
@@ -1031,6 +1037,7 @@
             ]
         },
         {
+            "name": "animation6",
             "channels": [
                 {
                     "sampler": 0,
@@ -1073,6 +1080,7 @@
             ]
         },
         {
+            "name": "animation7",
             "channels": [
                 {
                     "sampler": 0,
@@ -1115,6 +1123,7 @@
             ]
         },
         {
+            "name": "animation8",
             "channels": [
                 {
                     "sampler": 0,
@@ -1157,6 +1166,7 @@
             ]
         },
         {
+            "name": "animation9",
             "channels": [
                 {
                     "sampler": 0,
@@ -1199,6 +1209,7 @@
             ]
         },
         {
+            "name": "animation10",
             "channels": [
                 {
                     "sampler": 0,
@@ -1241,6 +1252,7 @@
             ]
         },
         {
+            "name": "animation11",
             "channels": [
                 {
                     "sampler": 0,
@@ -1283,6 +1295,7 @@
             ]
         },
         {
+            "name": "animation12",
             "channels": [
                 {
                     "sampler": 0,
@@ -1325,6 +1338,7 @@
             ]
         },
         {
+            "name": "animation13",
             "channels": [
                 {
                     "sampler": 0,
@@ -1367,6 +1381,7 @@
             ]
         },
         {
+            "name": "animation14",
             "channels": [
                 {
                     "sampler": 0,
@@ -1409,6 +1424,7 @@
             ]
         },
         {
+            "name": "animation15",
             "channels": [
                 {
                     "sampler": 0,
@@ -1451,6 +1467,7 @@
             ]
         },
         {
+            "name": "animation16",
             "channels": [
                 {
                     "sampler": 0,
@@ -1493,6 +1510,7 @@
             ]
         },
         {
+            "name": "animation17",
             "channels": [
                 {
                     "sampler": 0,
@@ -1535,6 +1553,7 @@
             ]
         },
         {
+            "name": "animation18",
             "channels": [
                 {
                     "sampler": 0,
@@ -1577,6 +1596,7 @@
             ]
         },
         {
+            "name": "animation19",
             "channels": [
                 {
                     "sampler": 0,
@@ -1619,6 +1639,7 @@
             ]
         },
         {
+            "name": "animation20",
             "channels": [
                 {
                     "sampler": 0,
@@ -1661,6 +1682,7 @@
             ]
         },
         {
+            "name": "animation21",
             "channels": [
                 {
                     "sampler": 0,
@@ -1703,6 +1725,7 @@
             ]
         },
         {
+            "name": "animation22",
             "channels": [
                 {
                     "sampler": 0,
@@ -1745,6 +1768,7 @@
             ]
         },
         {
+            "name": "animation23",
             "channels": [
                 {
                     "sampler": 0,
@@ -1787,6 +1811,7 @@
             ]
         },
         {
+            "name": "animation24",
             "channels": [
                 {
                     "sampler": 0,
@@ -1829,6 +1854,7 @@
             ]
         },
         {
+            "name": "animation25",
             "channels": [
                 {
                     "sampler": 0,
@@ -1871,6 +1897,7 @@
             ]
         },
         {
+            "name": "animation26",
             "channels": [
                 {
                     "sampler": 0,
@@ -1913,6 +1940,7 @@
             ]
         },
         {
+            "name": "animation27",
             "channels": [
                 {
                     "sampler": 0,
@@ -1955,6 +1983,7 @@
             ]
         },
         {
+            "name": "animation28",
             "channels": [
                 {
                     "sampler": 0,
@@ -1997,6 +2026,7 @@
             ]
         },
         {
+            "name": "animation29",
             "channels": [
                 {
                     "sampler": 0,
@@ -2039,6 +2069,7 @@
             ]
         },
         {
+            "name": "animation30",
             "channels": [
                 {
                     "sampler": 0,
@@ -2081,6 +2112,7 @@
             ]
         },
         {
+            "name": "animation31",
             "channels": [
                 {
                     "sampler": 0,

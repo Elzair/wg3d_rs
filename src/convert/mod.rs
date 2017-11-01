@@ -9,6 +9,7 @@ use gltf_importer::{import, Buffers};
 
 use super::Result;
 
+pub mod animation;
 pub mod material;
 pub mod mesh;
 pub mod primitive;
@@ -106,6 +107,10 @@ pub enum ConvertError {
     NoDefaultScene,
     /// No name for a mesh, skin, or animation
     NoName,
+    /// Invalid skeleton joint index
+    InvalidJoint,
+    /// Non uniform scaling animation
+    NonUniformScaling,
     /// Something weird
     Other,
 }
@@ -134,6 +139,12 @@ impl fmt::Display for ConvertError {
             ConvertError::NoName => {
                 write!(fmt, "No name for a mesh, skin, or animation")
             },
+            ConvertError::InvalidJoint => {
+                write!(fmt, "Invalid skeleton joint index")
+            },
+            ConvertError::NonUniformScaling => {
+                write!(fmt, "Non uniform scaling animation")
+            },
             ConvertError::Other => {
                 write!(fmt, "Something weird happened")
             },
@@ -150,6 +161,8 @@ impl error::Error for ConvertError {
         static NO_SKELETON: &'static str = "No specified root node of skeleton for a skin";
         static NO_DEFAULT_SCENE: &'static str = "No default scene present";
         static NO_NAME: &'static str = "No name for a mesh, skin, or animation";
+        static INVALID_JOINT: &'static str = "Invalid skeleton joint index";
+        static NONUNIFORM_SCALING: &'static str = "Non uniform scaling animation";
         static OTHER: &'static str = "Something weird happened";
 
         match *self {
@@ -173,6 +186,12 @@ impl error::Error for ConvertError {
             },
             ConvertError::NoName => {
                 NO_NAME
+            },
+            ConvertError::InvalidJoint => {
+                INVALID_JOINT
+            },
+            ConvertError::NonUniformScaling => {
+                NONUNIFORM_SCALING
             },
             ConvertError::Other => {
                 OTHER

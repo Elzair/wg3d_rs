@@ -26,6 +26,7 @@ byteorder = "1"
 cgmath = "0.15"
 # clap = { version = "2", optional = true }
 clap = "2"
+float-cmp = "0.2"
 gltf = "^0.9.3"
 gltf-importer = "^0.9.3"
 gltf-utils = "^0.9.3"

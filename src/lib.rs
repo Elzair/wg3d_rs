@@ -1,6 +1,7 @@
 extern crate bincode;
 extern crate byteorder;
 extern crate cgmath;
+extern crate float_cmp;
 extern crate gltf;
 extern crate gltf_importer;
 extern crate gltf_utils;
