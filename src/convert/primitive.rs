@@ -17,7 +17,6 @@ pub struct Primitive {
 
 pub fn get<'a>(
     primitive: &'a gltf_mesh::Primitive,
-    transform: Matrix4<f32>,
     has_bones: bool,
     buffers: &'a Buffers,
     textures: &'a Vec<Texture>,
@@ -25,7 +24,6 @@ pub fn get<'a>(
     let material = get_material(primitive, textures)?;
     let attributes = get_attributes(
         primitive,
-        transform,
         buffers,
         has_bones
     )?;
@@ -51,7 +49,6 @@ pub enum Attributes {
 
 fn get_attributes<'a>(
     primitive: &'a gltf_mesh::Primitive,
-    transform: Matrix4<f32>,
     buffers: &'a Buffers,
     has_joints: bool,
 ) -> Result<Attributes> {
@@ -81,17 +78,12 @@ fn get_attributes<'a>(
             
             Ok(Attributes::Tex1TangentBones(multizip((pos_it, nor_it, tx0_it, tx1_it, tan_it, id0_it, wt0_it))
                .map(|(pos, norm, tx0, tx1, tang, ids, wts)| {
-                   // Bake in any transforms.
-                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
-                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
-                   let tangent = transform * Vector4::<f32>::from(tang);
-                   
                    VertexTex1TangentBones {
-                       position: position.truncate(),
-                       normal: normal.truncate(),
+                       position: Vector3::<f32>::from(pos),
+                       normal: Vector3::<f32>::from(norm),
                        texcoord0: Vector2::<f32>::from(tx0),
                        texcoord1: Vector2::<f32>::from(tx1),
-                       tangent: tangent,
+                       tangent: Vector4::<f32>::from(tang),
                        joints: Vector4::<u16>::from(ids),
                        weights: Vector4::<f32>::from(wts),
                    }
@@ -110,17 +102,12 @@ fn get_attributes<'a>(
             
             Ok(Attributes::Tex1TangentNoBones(multizip((pos_it, nor_it, tx0_it, tx1_it, tan_it))
                .map(|(pos, norm, tx0, tx1, tang)| {
-                   // Bake in any transforms.
-                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
-                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
-                   let tangent = transform * Vector4::<f32>::from(tang);
-                   
                    VertexTex1TangentNoBones {
-                       position: position.truncate(),
-                       normal: normal.truncate(),
+                       position: Vector3::<f32>::from(pos),
+                       normal: Vector3::<f32>::from(norm),
                        texcoord0: Vector2::<f32>::from(tx0),
                        texcoord1: Vector2::<f32>::from(tx1),
-                       tangent: tangent,
+                       tangent: Vector4::<f32>::from(tang),
                    }
                }).collect()))
         } else {
@@ -139,13 +126,9 @@ fn get_attributes<'a>(
             
             Ok(Attributes::Tex1NoTangentBones(multizip((pos_it, nor_it, tx0_it, tx1_it, id0_it, wt0_it))
                .map(|(pos, norm, tx0, tx1, ids, wts)| {
-                   // Bake in any transforms.
-                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
-                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
-                   
                    VertexTex1NoTangentBones {
-                       position: position.truncate(),
-                       normal: normal.truncate(),
+                       position: Vector3::<f32>::from(pos),
+                       normal: Vector3::<f32>::from(norm),
                        texcoord0: Vector2::<f32>::from(tx0),
                        texcoord1: Vector2::<f32>::from(tx1),
                        joints: Vector4::<u16>::from(ids),
@@ -164,13 +147,9 @@ fn get_attributes<'a>(
             
             Ok(Attributes::Tex1NoTangentNoBones(multizip((pos_it, nor_it, tx0_it, tx1_it))
                .map(|(pos, norm, tx0, tx1)| {
-                   // Bake in any transforms.
-                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
-                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
-                   
                    VertexTex1NoTangentNoBones {
-                       position: position.truncate(),
-                       normal: normal.truncate(),
+                       position: Vector3::<f32>::from(pos),
+                       normal: Vector3::<f32>::from(norm),
                        texcoord0: Vector2::<f32>::from(tx0),
                        texcoord1: Vector2::<f32>::from(tx1),
                    }
@@ -192,16 +171,11 @@ fn get_attributes<'a>(
             
             Ok(Attributes::NoTex1TangentBones(multizip((pos_it, nor_it, tx0_it, tan_it, id0_it, wt0_it))
                .map(|(pos, norm, tx0, tang, ids, wts)| {
-                   // Bake in any transforms.
-                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
-                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
-                   let tangent = transform * Vector4::<f32>::from(tang);
-                   
                    VertexNoTex1TangentBones {
-                       position: position.truncate(),
-                       normal: normal.truncate(),
+                       position: Vector3::<f32>::from(pos),
+                       normal: Vector3::<f32>::from(norm),
                        texcoord0: Vector2::<f32>::from(tx0),
-                       tangent: tangent,
+                       tangent: Vector4::<f32>::from(tang),
                        joints: Vector4::<u16>::from(ids),
                        weights: Vector4::<f32>::from(wts),
                    }
@@ -219,16 +193,11 @@ fn get_attributes<'a>(
             
             Ok(Attributes::NoTex1TangentNoBones(multizip((pos_it, nor_it, tx0_it, tan_it))
                .map(|(pos, norm, tx0, tang)| {
-                   // Bake in any transforms.
-                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
-                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
-                   let tangent = transform * Vector4::<f32>::from(tang);
-
                    VertexNoTex1TangentNoBones {
-                       position: position.truncate(),
-                       normal: normal.truncate(),
+                       position: Vector3::<f32>::from(pos),
+                       normal: Vector3::<f32>::from(norm),
                        texcoord0: Vector2::<f32>::from(tx0),
-                       tangent: tangent,
+                       tangent: Vector4::<f32>::from(tang),
                    }
                }).collect()))
         } else {
@@ -246,12 +215,9 @@ fn get_attributes<'a>(
             
             Ok(Attributes::NoTex1NoTangentBones(multizip((pos_it, nor_it, tx0_it, id0_it, wt0_it))
                .map(|(pos, norm, tx0, ids, wts)| {
-                   // Bake in any transforms.
-                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
-                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
                    VertexNoTex1NoTangentBones {
-                       position: position.truncate(),
-                       normal: normal.truncate(),
+                       position: Vector3::<f32>::from(pos),
+                       normal: Vector3::<f32>::from(norm),
                        texcoord0: Vector2::<f32>::from(tx0),
                        joints: Vector4::<u16>::from(ids),
                        weights: Vector4::<f32>::from(wts),
@@ -266,12 +232,9 @@ fn get_attributes<'a>(
             
             Ok(Attributes::NoTex1NoTangentNoBones(multizip((pos_it, nor_it, tx0_it))
                .map(|(pos, norm, tx0)| {
-                   // Bake in any transforms.
-                   let position = transform * Vector4::<f32>::new(pos[0], pos[1], pos[2], 1.0);
-                   let normal = transform * Vector4::<f32>::new(norm[0], norm[1], norm[2], 1.0);
                    VertexNoTex1NoTangentNoBones {
-                       position: position.truncate(),
-                       normal: normal.truncate(),
+                       position: Vector3::<f32>::from(pos),
+                       normal: Vector3::<f32>::from(norm),
                        texcoord0: Vector2::<f32>::from(tx0),
                    }
                }).collect()))

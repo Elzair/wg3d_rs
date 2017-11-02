@@ -53,7 +53,6 @@ pub fn get_models<'a>(
     for root_node in scene.nodes() {
         get_models_helper(
             &root_node,
-            Matrix4::identity(),
             &mut models,
             buffers,
             textures
@@ -65,26 +64,21 @@ pub fn get_models<'a>(
 
 fn get_models_helper<'a>(
     node: &'a Node,
-    current_transform: Matrix4<f32>,
     models: &'a mut Vec<Model>,
     buffers: &'a Buffers,
     textures: &'a Vec<texture::Texture>,
 ) -> Result<()> {
-    // Compute current transform.
-    let local_transform = Matrix4::from(node.transform().matrix());
-    let transform = current_transform * local_transform;
-
     // Add model if mesh is present.
     if let Some(mesh) = node.mesh() {
         let name = node.name().ok_or(ConvertError::NoName)?;
         let has_bones = node.skin().is_some();
-        let mesh = get_mesh(&mesh, name, transform, has_bones, buffers, textures)?;
+        let mesh = get_mesh(&mesh, name, has_bones, buffers, textures)?;
         models.push(Model { mesh: mesh });
     }
     
     // Try to find models in child nodes.
     for node in node.children() {
-        get_models_helper(&node, transform, models, buffers, textures)?;
+        get_models_helper(&node, models, buffers, textures)?;
     }
 
     Ok(())

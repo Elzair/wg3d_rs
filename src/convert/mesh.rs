@@ -14,7 +14,6 @@ pub struct Mesh {
 pub fn get<'a>(
     mesh: &'a GltfMesh,
     name: &'a str,
-    transform: Matrix4<f32>,
     has_bones: bool,
     buffers: &'a Buffers,
     textures: &'a Vec<Texture>,
@@ -22,7 +21,7 @@ pub fn get<'a>(
     let mut primitives = Vec::<Primitive>::new();
 
     for prim in mesh.primitives() {
-        let primitive = get_primitive(&prim, transform, has_bones, buffers, textures)?;
+        let primitive = get_primitive(&prim, has_bones, buffers, textures)?;
         primitives.push(primitive);
     }
 
