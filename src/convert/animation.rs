@@ -68,7 +68,7 @@ fn get_channel<'a>(
 pub enum Property {
     Translation(Vec<(f32, Vector3<f32>)>),
     Rotation(Vec<(f32, Quaternion<f32>)>),
-    Scale(Vec<(f32, Vector3<f32>)>),
+    Scale(Vec<(f32, f32)>),
     Weight(Vec<(f32, f32)>),
 }
 
@@ -182,14 +182,14 @@ fn get_rotations<'a>(
 fn get_scales<'a>(
     accessor: &'a Accessor,
     buffers: &'a Buffers,
-) -> Result<Vec<Vector3<f32>>> {
+) -> Result<Vec<f32>> {
     match accessor.dimensions() {
         Dimensions::Vec3 => {
             match accessor.data_type() {
                 DataType::F32 => {
                     let contents = buffers.view(&accessor.view())
                         .ok_or(ConvertError::Other)?;
-                    let mut translations = Vec::<Vector3<f32>>::with_capacity(accessor.count());
+                    let mut translations = Vec::<f32>::with_capacity(accessor.count());
                     let mut offset = accessor.offset();
 
                     #[allow(unused_variables)]
@@ -207,7 +207,7 @@ fn get_scales<'a>(
 
                         } 
 
-                        translations.push(Vector3::new(x, y, z));
+                        translations.push(x);
 
                         offset = offset + accessor.view().stride().unwrap_or(accessor.size());
                     }
