@@ -1,4 +1,6 @@
 use std::io::Cursor;
+use std::u16;
+use std::usize;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::{Matrix4, SquareMatrix};
@@ -13,7 +15,7 @@ use super::ConvertError;
 
 pub struct Skin {
     name: String,
-    root_index: usize,
+    root_index: u16,
     joints: Vec<Joint>,
 }
 
@@ -59,7 +61,7 @@ fn get_skin<'a>(
 
 fn get_root_index<'a>(
     skin: &'a GltfSkin,
-) -> Result<usize> {
+) -> Result<u16> {
     // Get index in nodes array of root joint node.
     let root_node_index = skin.skeleton().ok_or(ConvertError::NoSkeleton)?.index();
 
@@ -71,14 +73,20 @@ fn get_root_index<'a>(
 
     let root_index = mapping.iter().find(|&&m| m.0 == root_node_index)
         .ok_or(ConvertError::NoSkeleton)?.1;
-    Ok(root_index)
+
+    if root_index >= (u16::MAX - 1) as usize {
+        Err(Error::Convert(ConvertError::TooManyJoints))
+    }
+    else {
+        Ok(root_index as u16)
+    }
 }
 
 pub struct Joint {
     name: String,
     local_transform: Matrix4<f32>,
     inverse_bind_matrix: Matrix4<f32>,
-    children: Vec<usize>,
+    parent: usize,
     old_index: usize,
 }
 
@@ -91,16 +99,16 @@ fn get_joints<'a>(
         Matrix4::<f32>::from(joint.transform().matrix())
     }).collect::<Vec<_>>();
     let inverse_bind_matrices = get_inverse_bind_matrices(&skin, buffers)?;
-    let child_indices = get_children_indices(skin);
+    let parent_indices = get_parent_indices(skin);
     let old_indices = skin.joints().map(|joint| joint.index()).collect::<Vec<_>>();
 
-    Ok(multizip((names, transforms, inverse_bind_matrices, child_indices, old_indices))
-        .map(|(name, transform, inverse_bind_matrix, children, old_index)| {
+    Ok(multizip((names, transforms, inverse_bind_matrices, parent_indices, old_indices))
+        .map(|(name, transform, inverse_bind_matrix, parent, old_index)| {
             Joint {
                 name: name,
                 local_transform: transform,
                 inverse_bind_matrix: inverse_bind_matrix,
-                children: children,
+                parent: parent,
                 old_index: old_index,
             }
         }).collect())
@@ -115,20 +123,32 @@ fn get_joint_names<'a>(
     }).collect()
 }
 
-fn get_children_indices<'a>(
+fn get_parent_indices<'a>(
     skin: &'a GltfSkin,
-) -> Vec<Vec<usize>> {
+) -> Vec<usize> {
     // Get mapping of `nodes` indices to `joints` indices.
     let len = skin.joints().count();
-    let mapping = skin.joints().map(|joint| joint.index())
+    let mapping1 = skin.joints().map(|joint| joint.index())
         .zip((0..len).into_iter())
         .collect::<Vec<_>>();
 
     // Find `joints` indices for all child joints.
-    skin.joints().map(|joint| {
+    let mapping2 = skin.joints().map(|joint| {
         joint.children().map(|child| {
-            mapping.iter().find(|&&m| m.0 == child.index()).unwrap().1
-        }).collect()
+            mapping1.iter().find(|&&(nidx, _)| nidx == child.index()).unwrap().1
+        }).collect::<Vec<_>>()
+    }).zip((0..len).into_iter()).collect::<Vec<_>>();
+
+    // Find `joints` indices for all parents of joints.
+    skin.joints().map(|joint| {
+        let my_index = mapping1.iter().find(|&&(nidx, _)| nidx == joint.index()).unwrap().1;
+
+        match mapping2.iter().find(|&&(ref children, _)| {
+            children.iter().find(|&&child| child == my_index).is_some()
+        }) {
+            Some(&(_, parent)) => parent,
+            None => usize::MAX
+        }
     }).collect()
 }
 

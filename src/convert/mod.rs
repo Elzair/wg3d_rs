@@ -111,6 +111,8 @@ pub enum ConvertError {
     InvalidJoint,
     /// Non uniform scaling animation
     NonUniformScaling,
+    /// Too many joints
+    TooManyJoints,
     /// Something weird
     Other,
 }
@@ -145,6 +147,9 @@ impl fmt::Display for ConvertError {
             ConvertError::NonUniformScaling => {
                 write!(fmt, "Non uniform scaling animation")
             },
+            ConvertError::TooManyJoints => {
+                write!(fmt, "Too many joints")
+            },
             ConvertError::Other => {
                 write!(fmt, "Something weird happened")
             },
@@ -163,6 +168,7 @@ impl error::Error for ConvertError {
         static NO_NAME: &'static str = "No name for a mesh, skin, or animation";
         static INVALID_JOINT: &'static str = "Invalid skeleton joint index";
         static NONUNIFORM_SCALING: &'static str = "Non uniform scaling animation";
+        static TOO_MANY_JOINTS: &'static str = "Too many joints";
         static OTHER: &'static str = "Something weird happened";
 
         match *self {
@@ -192,6 +198,9 @@ impl error::Error for ConvertError {
             },
             ConvertError::NonUniformScaling => {
                 NONUNIFORM_SCALING
+            },
+            ConvertError::TooManyJoints => {
+                TOO_MANY_JOINTS
             },
             ConvertError::Other => {
                 OTHER
