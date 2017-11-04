@@ -16,6 +16,7 @@ pub mod primitive;
 pub mod skin;
 pub mod texture;
 
+use self::animation::{Animation, get as get_animations};
 use self::mesh::{Mesh, get as get_mesh};
 use self::skin::{Skin, get as get_skins};
 use self::texture::{Texture, get as get_textures};
@@ -24,7 +25,10 @@ pub struct Model {
     mesh: Mesh,
 }
 
-pub fn get<P: AsRef<Path>>(path: P) -> Result<Vec<Model>> {
+pub fn get<P: AsRef<Path>>(
+    path: P,
+    animation_sample_rate: f32,
+) -> Result<Vec<Model>> {
     // Read in all relevant data.
     let cwd = current_dir()?;
     let parent = path.as_ref().parent().unwrap_or(&cwd);
@@ -36,6 +40,9 @@ pub fn get<P: AsRef<Path>>(path: P) -> Result<Vec<Model>> {
 
     // Retrieve skins.
     let skins = get_skins(&gltf, &buffers)?;
+
+    // Retrieve animations.
+    let animations = get_animations(&gltf, &skins, &buffers)?;
 
     // Retrieve models.
     let models = get_models(&scene, &buffers, &textures)?;
@@ -212,7 +219,7 @@ mod tests {
     #[test]
     fn test_get() {
         let path = Path::new("testmodels/gltf2/Monster/Monster.gltf");
-        match get(path) {
+        match get(path, 1.0 / 3.0) {
             Ok(_) => {},
             Err(err) => {
                 println!("{}", err.to_string());

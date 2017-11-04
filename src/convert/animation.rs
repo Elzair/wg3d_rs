@@ -1,12 +1,13 @@
-use std::io::Cursor;
+// use std::io::Cursor;
+use std::u16;
 
-use byteorder::{LittleEndian, ReadBytesExt};
+// use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::{Vector3, Quaternion};
-use float_cmp::ApproxEqUlps;
 use gltf::Gltf;
 use gltf::accessor::{Accessor, DataType, Dimensions};
-use gltf::animation::{Animation as GltfAnimation, Channel as GltfChannel, Sampler as GltfSampler, TrsProperty};
+use gltf::animation::{Animation as GltfAnimation, Channel as GltfChannel, InterpolationAlgorithm, Sampler as GltfSampler, TrsProperty};
 use gltf_importer::Buffers;
+use gltf_utils::{AccessorIter, Denormalize, Source as GltfSource};
 
 use super::super::{Result, Error};
 use super::ConvertError;
@@ -19,23 +20,21 @@ pub struct Animation {
 
 pub fn get<'a>(
     gltf: &'a Gltf,
-    skin: &'a Skin,
+    skins: &'a [Skin],
     buffers: &'a Buffers,
 ) -> Result<Vec<Animation>> {
     gltf.animations().map(|animation| {
-        get_animation(&animation, skin, buffers)
+        get_animation(&animation, skins, buffers)
     }).collect::<Result<Vec<_>>>()
 }
 
 fn get_animation<'a>(
     animation: &'a GltfAnimation,
-    skin: &'a Skin,
+    skins: &'a [Skin],
     buffers: &'a Buffers,
 ) -> Result<Animation> {
     let name = animation.name().ok_or(ConvertError::NoName)?;
-    let channels = animation.channels().map(|channel| {
-        get_channel(&channel, skin, buffers)
-    }).collect::<Result<Vec<_>>>()?;
+    let channels = get_channels(animation, skins, buffers)?;
     
     Ok(Animation {
         name: String::from(name),
@@ -43,246 +42,298 @@ fn get_animation<'a>(
     })
 }
 
-pub struct Channel {
-    joint_index: usize,
-    property: Property,
+pub enum Channel {
+    Translation {
+        joint_index: u16,
+        interpolation: Interpolation,
+        times: Vec<f32>,
+        translations: Vec<Vector3<f32>>,
+    },
+    Rotation {
+        joint_index: u16,
+        interpolation: Interpolation,
+        times: Vec<f32>,
+        rotations: Vec<Quaternion<f32>>,
+    },
+    Scale {
+        joint_index: u16,
+        interpolation: Interpolation,
+        times: Vec<f32>,
+        scales: Vec<Vector3<f32>>,
+    },
+    Weights {
+        joint_index: u16,
+        interpolation: Interpolation,
+        times: Vec<f32>,
+        weights: Vec<f32>,
+    },
 }
 
-fn get_channel<'a>(
-    channel: &'a GltfChannel,
-    skin: &'a Skin,
+fn get_channels<'a>(
+    animation: &'a GltfAnimation,
+    skins: &'a [Skin],
     buffers: &'a Buffers,
-) -> Result<Channel> {
-    let path = channel.target().path();
-    let joint_index = skin.get_joint_index(
-        channel.target().node().index()
-    ).ok_or(ConvertError::InvalidJoint)?;
-    let property = get_property(path, &channel.sampler(), buffers)?;
+) -> Result<Vec<Channel>> {
+    animation.channels().map(|channel| {
+        let sampler = channel.sampler();
+        let interpolation_method = match sampler.interpolation() {
+            InterpolationAlgorithm::CatmullRomSpline => Interpolation::CatmullRom,
+            InterpolationAlgorithm::CubicSpline => Interpolation::Cubic,
+            InterpolationAlgorithm::Linear => Interpolation::Linear,
+            InterpolationAlgorithm::Step => Interpolation::Step,
+        };
+        let times = Times(AccessorIter::new(sampler.input(), buffers)).collect();
 
-    Ok(Channel {
-        joint_index: joint_index,
-        property: property,
-    })
+        let target = channel.target();
+        let joint_index = get_joint_index(target.node().index(), skins)?;
+
+        match target.path() {
+            TrsProperty::Translation => {
+                let translations = Translations(
+                    AccessorIter::new(sampler.output(), buffers)
+                ).map(|trans| Vector3::<f32>::from(trans)
+                ).collect::<Vec<_>>();
+
+                Ok(Channel::Translation {
+                    joint_index: joint_index,
+                    interpolation: interpolation_method,
+                    times: times,
+                    translations: translations,
+                })
+            },
+            TrsProperty::Rotation => {
+                let rotations = RotationsF32(
+                    Rotations::new(sampler.output(), buffers)
+                ).map(|rot| Quaternion::<f32>::from(rot)
+                ).collect::<Vec<_>>();
+
+                Ok(Channel::Rotation {
+                    joint_index: joint_index,
+                    interpolation: interpolation_method,
+                    times: times,
+                    rotations: rotations,
+                })
+            },
+            TrsProperty::Scale => {
+                let scales = Scales(
+                    AccessorIter::new(sampler.output(), buffers)
+                ).map(|scale| Vector3::<f32>::from(scale)
+                ).collect::<Vec<_>>();
+
+                Ok(Channel::Scale {
+                    joint_index: joint_index,
+                    interpolation: interpolation_method,
+                    times: times,
+                    scales: scales,
+                })
+            },
+            TrsProperty::Weights => {
+                let weights = WeightsF32(
+                    Weights::new(sampler.output(), buffers)
+                ).collect::<Vec<_>>();
+
+                Ok(Channel::Weights {
+                    joint_index: joint_index,
+                    interpolation: interpolation_method,
+                    times: times,
+                    weights: weights,
+                })
+            },
+        }
+    }).collect::<Result<Vec<_>>>()
 }
 
-pub enum Property {
-    Translation(Vec<(f32, Vector3<f32>)>),
-    Rotation(Vec<(f32, Quaternion<f32>)>),
-    Scale(Vec<(f32, f32)>),
-    Weight(Vec<(f32, f32)>),
+fn get_joint_index<'a>(
+    node_index: usize,
+    skins: &'a [Skin],
+) -> Result<u16> {
+    for skin in skins.iter() {
+        if let Some(joint_index) = skin.get_joint_index(node_index) {
+            return Ok(joint_index);
+        }
+    }
+
+    Err(Error::Convert(ConvertError::InvalidJoint))
 }
 
-fn get_property<'a>(
-    path: TrsProperty,
-    sampler: &'a GltfSampler,
-    buffers: &'a Buffers,
-) -> Result<Property> {
-    let times = get_times(&sampler.input(), buffers)?;
-    match path {
-        TrsProperty::Translation => {
-            let translations = get_translations(&sampler.output(), buffers)?;
-            Ok(Property::Translation(
-                times.into_iter().zip(translations.into_iter()).collect()
-            ))
-        },
-        TrsProperty::Rotation => {
-            let rotations = get_rotations(&sampler.output(), buffers)?;
-            Ok(Property::Rotation(
-                times.into_iter().zip(rotations.into_iter()).collect()
-            ))
-        },
-        TrsProperty::Scale => {
-            let scales = get_scales(&sampler.output(), buffers)?;
-            Ok(Property::Scale(
-                times.into_iter().zip(scales.into_iter()).collect()
-            ))
-        },
-        TrsProperty::Weights => {
-            let weights = get_weights(&sampler.output(), buffers)?;
-            Ok(Property::Weight(
-                times.into_iter().zip(weights.into_iter()).collect()
-            ))
-        },
+pub enum Interpolation {
+    CatmullRom,
+    Cubic,
+    Linear,
+    Step,
+}
+
+/// Timestamp of type `f32`.
+#[derive(Clone, Debug)]
+pub struct Times<'a>(AccessorIter<'a, f32>);
+
+impl<'a> ExactSizeIterator for Times<'a> {}
+impl<'a> Iterator for Times<'a> {
+    type Item = f32;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
     }
 }
 
-fn get_translations<'a>(
-    accessor: &'a Accessor,
-    buffers: &'a Buffers,
-) -> Result<Vec<Vector3<f32>>> {
-    match accessor.dimensions() {
-        Dimensions::Vec3 => {
-            match accessor.data_type() {
-                DataType::F32 => {
-                    let contents = buffers.view(&accessor.view())
-                        .ok_or(ConvertError::Other)?;
-                    let mut translations = Vec::<Vector3<f32>>::with_capacity(accessor.count());
-                    let mut offset = accessor.offset();
+/// XYZ translations of type `[f32; 3]`.
+#[derive(Clone, Debug)]
+pub struct Translations<'a>(AccessorIter<'a, [f32; 3]>);
 
-                    #[allow(unused_variables)]
-                    for i in 0..accessor.count() {
-                        let sl = &contents[offset..(offset + accessor.size())];
-                        let mut cursor = Cursor::new(sl);
+impl<'a> ExactSizeIterator for Translations<'a> {}
+impl<'a> Iterator for Translations<'a> {
+    type Item = [f32; 3];
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
 
-                        let x = cursor.read_f32::<LittleEndian>()?;
-                        let y = cursor.read_f32::<LittleEndian>()?;
-                        let z = cursor.read_f32::<LittleEndian>()?;
-
-                        translations.push(Vector3::new(x, y, z));
-
-                        offset = offset + accessor.view().stride().unwrap_or(accessor.size());
-                    }
-
-                    Ok(translations)
-                },
-                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
-            }
-        }
-        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
     }
 }
 
-fn get_rotations<'a>(
-    accessor: &'a Accessor,
-    buffers: &'a Buffers,
-) -> Result<Vec<Quaternion<f32>>> {
-    match accessor.dimensions() {
-        Dimensions::Vec4 => {
-            match accessor.data_type() {
-                DataType::F32 => {
-                    let contents = buffers.view(&accessor.view())
-                        .ok_or(ConvertError::Other)?;
-                    let mut rotations = Vec::<Quaternion<f32>>::with_capacity(accessor.count());
-                    let mut offset = accessor.offset();
+/// XYZW quaternion rotations of type `[f32; 4]`.
+#[derive(Clone, Debug)]
+pub struct RotationsF32<'a>(Rotations<'a>);
 
-                    #[allow(unused_variables)]
-                    for i in 0..accessor.count() {
-                        let sl = &contents[offset..(offset + accessor.size())];
-                        let mut cursor = Cursor::new(sl);
-
-                        let x = cursor.read_f32::<LittleEndian>()?;
-                        let y = cursor.read_f32::<LittleEndian>()?;
-                        let z = cursor.read_f32::<LittleEndian>()?;
-                        let w = cursor.read_f32::<LittleEndian>()?;
-
-                        rotations.push(Quaternion::new(w, x, y, z));
-
-                        offset = offset + accessor.view().stride().unwrap_or(accessor.size());
-                    }
-
-                    Ok(rotations)
-                },
-                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
-            }
+impl<'a> ExactSizeIterator for RotationsF32<'a> {}
+impl<'a> Iterator for RotationsF32<'a> {
+    type Item = [f32; 4];
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.0 {
+            Rotations::F32(ref mut i) => i.next(),
+            Rotations::U8(ref mut i) => i.next().map(|x| x.denormalize()),
+            Rotations::I16(ref mut i) => i.next().map(|x| {
+                [x[0] as f32 / 32767.0,
+                 x[1] as f32 / 32767.0,
+                 x[2] as f32 / 32767.0,
+                 x[3] as f32 / 32767.0]
+            }),
+            Rotations::U16(ref mut i) => i.next().map(|x| x.denormalize()),
         }
-        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self.0 {
+            Rotations::F32(ref i) => i.size_hint(),
+            Rotations::U8(ref i) => i.size_hint(),
+            Rotations::I16(ref i) => i.size_hint(),
+            Rotations::U16(ref i) => i.size_hint(),
+        }
     }
 }
 
-fn get_scales<'a>(
-    accessor: &'a Accessor,
-    buffers: &'a Buffers,
-) -> Result<Vec<f32>> {
-    match accessor.dimensions() {
-        Dimensions::Vec3 => {
-            match accessor.data_type() {
-                DataType::F32 => {
-                    let contents = buffers.view(&accessor.view())
-                        .ok_or(ConvertError::Other)?;
-                    let mut translations = Vec::<f32>::with_capacity(accessor.count());
-                    let mut offset = accessor.offset();
+/// XYZ scales of type `[f32; 3]`.
+#[derive(Clone, Debug)]
+pub struct Scales<'a>(AccessorIter<'a, [f32; 3]>);
 
-                    #[allow(unused_variables)]
-                    for i in 0..accessor.count() {
-                        let sl = &contents[offset..(offset + accessor.size())];
-                        let mut cursor = Cursor::new(sl);
+impl<'a> ExactSizeIterator for Scales<'a> {}
+impl<'a> Iterator for Scales<'a> {
+    type Item = [f32; 3];
 
-                        let x = cursor.read_f32::<LittleEndian>()?;
-                        let y = cursor.read_f32::<LittleEndian>()?;
-                        let z = cursor.read_f32::<LittleEndian>()?;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
 
-                        // Return an error if scales are non-uniform.
-                        if !x.approx_eq_ulps(&y, 2) || !y.approx_eq_ulps(&z, 2) || !z.approx_eq_ulps(&x, 2) {
-                            return Err(Error::Convert(ConvertError::NonUniformScaling));
-
-                        } 
-
-                        translations.push(x);
-
-                        offset = offset + accessor.view().stride().unwrap_or(accessor.size());
-                    }
-
-                    Ok(translations)
-                },
-                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
-            }
-        }
-        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
     }
 }
 
-fn get_weights<'a>(
-    accessor: &'a Accessor,
-    buffers: &'a Buffers,
-) -> Result<Vec<f32>> {
-    match accessor.dimensions() {
-        Dimensions::Scalar => {
-            match accessor.data_type() {
-                DataType::F32 => {
-                    let contents = buffers.view(&accessor.view())
-                        .ok_or(ConvertError::Other)?;
-                    let mut weights = Vec::<f32>::with_capacity(accessor.count());
-                    let mut offset = accessor.offset();
+/// Morph-target weights of type `f32`.
+#[derive(Clone, Debug)]
+pub struct WeightsF32<'a>(Weights<'a>);
 
-                    #[allow(unused_variables)]
-                    for i in 0..accessor.count() {
-                        let sl = &contents[offset..(offset + accessor.size())];
-                        let mut cursor = Cursor::new(sl);
+impl<'a> ExactSizeIterator for WeightsF32<'a> {}
+impl<'a> Iterator for WeightsF32<'a> {
+    type Item = f32;
 
-                        let weight = cursor.read_f32::<LittleEndian>()?;
-                        weights.push(weight);
-
-                        offset = offset + accessor.view().stride().unwrap_or(accessor.size());
-                    }
-
-                    Ok(weights)
-                },
-                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
-            }
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.0 {
+            Weights::F32(ref mut i) => i.next(),
+            Weights::U8(ref mut i) => i.next().map(|x| x.denormalize()),
+            Weights::I16(ref mut i) => i.next().map(|x| x as f32 / 32767.0),
+            Weights::U16(ref mut i) => i.next().map(|x| x.denormalize()),
         }
-        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self.0 {
+            Weights::F32(ref i) => i.size_hint(),
+            Weights::U8(ref i) => i.size_hint(),
+            Weights::I16(ref i) => i.size_hint(),
+            Weights::U16(ref i) => i.size_hint(),
+        }
     }
 }
 
-fn get_times<'a>(
-    accessor: &'a Accessor,
-    buffers: &'a Buffers,
-) -> Result<Vec<f32>> {
-    match accessor.dimensions() {
-        Dimensions::Scalar => {
-            match accessor.data_type() {
-                DataType::F32 => {
-                    let contents = buffers.view(&accessor.view())
-                        .ok_or(ConvertError::Other)?;
-                    let mut times = Vec::<f32>::with_capacity(accessor.count());
-                    let mut offset = accessor.offset();
+/// Rotations
+#[derive(Clone, Debug)]
+enum Rotations<'a> {
+    F32(AccessorIter<'a, [f32; 4]>),
+    U8(AccessorIter<'a, [u8; 4]>),
+    I16(AccessorIter<'a, [i16; 4]>),
+    U16(AccessorIter<'a, [u16; 4]>),
+}
 
-                    #[allow(unused_variables)]
-                    for i in 0..accessor.count() {
-                        let sl = &contents[offset..(offset + accessor.size())];
-                        let mut cursor = Cursor::new(sl);
-
-                        let time = cursor.read_f32::<LittleEndian>()?;
-                        times.push(time);
-
-                        offset = offset + accessor.view().stride().unwrap_or(accessor.size());
-                    }
-
-                    Ok(times)
-                },
-                _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
-            }
+impl<'a> Rotations<'a> {
+    fn new<S: GltfSource>(accessor: Accessor<'a>, source: &'a S) -> Rotations<'a> {
+        match accessor.dimensions() {
+            Dimensions::Vec4 => {
+                match accessor.data_type() {
+                    DataType::F32 => {
+                        Rotations::F32(AccessorIter::new(accessor, source))
+                    },
+                    DataType::U8 => {
+                        Rotations::U8(AccessorIter::new(accessor, source))
+                    },
+                    DataType::I16 => {
+                        Rotations::I16(AccessorIter::new(accessor, source))
+                    },
+                    DataType::U16 => {
+                        Rotations::U16(AccessorIter::new(accessor, source))
+                    },
+                    _ => unimplemented!(),
+                }
+            },
+            _ => unimplemented!(),
         }
-        _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
+    }
+}
+
+/// Weights
+#[derive(Clone, Debug)]
+enum Weights<'a> {
+    F32(AccessorIter<'a, f32>),
+    U8(AccessorIter<'a, u8>),
+    I16(AccessorIter<'a, i16>), 
+    U16(AccessorIter<'a, u16>),
+}
+
+impl<'a> Weights<'a> {
+    fn new<S: GltfSource>(accessor: Accessor<'a>, source: &'a S) -> Weights<'a> {
+        match accessor.dimensions() {
+            Dimensions::Scalar => {
+                match accessor.data_type() {
+                    DataType::F32 => {
+                        Weights::F32(AccessorIter::new(accessor, source))
+                    },
+                    DataType::U8 => {
+                        Weights::U8(AccessorIter::new(accessor, source))
+                    },
+                    DataType::I16 => {
+                        Weights::I16(AccessorIter::new(accessor, source))
+                    },
+                    DataType::U16 => {
+                        Weights::U16(AccessorIter::new(accessor, source))
+                    },
+                    _ => unimplemented!(),
+                }
+            },
+            _ => unimplemented!(),
+        }
     }
 }
