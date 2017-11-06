@@ -46,27 +46,38 @@ pub enum Channel {
     Translation {
         joint_index: u16,
         interpolation: Interpolation,
-        times: Vec<f32>,
-        translations: Vec<Vector3<f32>>,
+        translations: Vec<Vector3Data>,
     },
     Rotation {
         joint_index: u16,
         interpolation: Interpolation,
-        times: Vec<f32>,
-        rotations: Vec<Quaternion<f32>>,
+        rotations: Vec<QuaternionData>,
     },
     Scale {
         joint_index: u16,
         interpolation: Interpolation,
-        times: Vec<f32>,
-        scales: Vec<Vector3<f32>>,
+        scales: Vec<Vector3Data>,
     },
     Weights {
         joint_index: u16,
         interpolation: Interpolation,
-        times: Vec<f32>,
-        weights: Vec<f32>,
+        weights: Vec<ScalarData>,
     },
+}
+
+pub struct Vector3Data {
+    time_stamp: f32,
+    vector: Vector3<f32>,
+}
+
+pub struct QuaternionData {
+    time_stamp: f32,
+    quaternion: Quaternion<f32>,
+}
+
+pub struct ScalarData {
+    time_stamp: f32,
+    scalar: f32,
 }
 
 fn get_channels<'a>(
@@ -76,66 +87,114 @@ fn get_channels<'a>(
 ) -> Result<Vec<Channel>> {
     animation.channels().map(|channel| {
         let sampler = channel.sampler();
-        let interpolation_method = match sampler.interpolation() {
-            InterpolationAlgorithm::CatmullRomSpline => Interpolation::CatmullRom,
-            InterpolationAlgorithm::CubicSpline => Interpolation::Cubic,
-            InterpolationAlgorithm::Linear => Interpolation::Linear,
-            InterpolationAlgorithm::Step => Interpolation::Step,
+        let (interpolation_method, times) = match sampler.interpolation() {
+            InterpolationAlgorithm::CatmullRomSpline => {
+                let mut times = Times(AccessorIter::new(
+                    sampler.input(), buffers)
+                ).collect::<Vec<_>>();
+                // Add stub timestamps for start and end tangents of spline.
+                let (first, last) = {
+                    (times[0], times[times.len()-1])
+                };
+                times.push(first);
+                times.push(last);
+
+                (Interpolation::CatmullRom, times)
+            },
+            InterpolationAlgorithm::CubicSpline => {
+                let mut times = Times(AccessorIter::new(
+                    sampler.input(), buffers)
+                ).collect::<Vec<_>>();
+                // Add stub timestamps for start and end tangents of spline.
+                let (first, last) = {
+                    (times[0], times[times.len()-1])
+                };
+                times.push(first);
+                times.push(last);
+
+                (Interpolation::Cubic, times)
+            },
+            InterpolationAlgorithm::Linear => {
+                let times = Times(AccessorIter::new(
+                    sampler.input(), buffers)
+                ).collect::<Vec<_>>();
+
+                (Interpolation::Linear, times)
+            },
+            InterpolationAlgorithm::Step => {
+                let times = Times(AccessorIter::new(
+                    sampler.input(), buffers)
+                ).collect::<Vec<_>>();
+
+                (Interpolation::Step, times)
+            },
         };
-        let times = Times(AccessorIter::new(sampler.input(), buffers)).collect();
 
         let target = channel.target();
         let joint_index = get_joint_index(target.node().index(), skins)?;
 
         match target.path() {
             TrsProperty::Translation => {
-                let translations = Translations(
+                let translations = times.into_iter().zip(Translations(
                     AccessorIter::new(sampler.output(), buffers)
-                ).map(|trans| Vector3::<f32>::from(trans)
-                ).collect::<Vec<_>>();
+                )).map(|(time_stamp, vector)| {
+                    Vector3Data {
+                        time_stamp: time_stamp,
+                        vector: Vector3::from(vector),
+                    }
+                }).collect::<Vec<_>>();
 
                 Ok(Channel::Translation {
                     joint_index: joint_index,
                     interpolation: interpolation_method,
-                    times: times,
                     translations: translations,
                 })
             },
             TrsProperty::Rotation => {
-                let rotations = RotationsF32(
+                let rotations = times.into_iter().zip(RotationsF32(
                     Rotations::new(sampler.output(), buffers)
-                ).map(|rot| Quaternion::<f32>::from(rot)
-                ).collect::<Vec<_>>();
+                )).map(|(time_stamp, quaternion)| {
+                    QuaternionData {
+                        time_stamp: time_stamp,
+                        quaternion: Quaternion::from(quaternion),
+                    }
+                }).collect::<Vec<_>>();
 
                 Ok(Channel::Rotation {
                     joint_index: joint_index,
                     interpolation: interpolation_method,
-                    times: times,
                     rotations: rotations,
                 })
             },
             TrsProperty::Scale => {
-                let scales = Scales(
+                let scales = times.into_iter().zip(Scales(
                     AccessorIter::new(sampler.output(), buffers)
-                ).map(|scale| Vector3::<f32>::from(scale)
-                ).collect::<Vec<_>>();
+                )).map(|(time_stamp, vector)| {
+                    Vector3Data {
+                        time_stamp: time_stamp,
+                        vector: Vector3::from(vector),
+                    }
+                }).collect::<Vec<_>>();
 
                 Ok(Channel::Scale {
                     joint_index: joint_index,
                     interpolation: interpolation_method,
-                    times: times,
                     scales: scales,
                 })
             },
             TrsProperty::Weights => {
-                let weights = WeightsF32(
+                let weights = times.into_iter().zip(WeightsF32(
                     Weights::new(sampler.output(), buffers)
-                ).collect::<Vec<_>>();
+                )).map(|(time_stamp, scalar)| {
+                    ScalarData {
+                        time_stamp: time_stamp,
+                        scalar: scalar,
+                    }
+                }).collect::<Vec<_>>();
 
                 Ok(Channel::Weights {
                     joint_index: joint_index,
                     interpolation: interpolation_method,
-                    times: times,
                     weights: weights,
                 })
             },
