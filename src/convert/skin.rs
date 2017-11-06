@@ -1,18 +1,15 @@
-use std::io::Cursor;
 use std::u16;
 use std::usize;
 
-use byteorder::{LittleEndian, ReadBytesExt};
-use cgmath::{Matrix4, SquareMatrix, Vector4};
+use cgmath::{Matrix4, SquareMatrix};
 use gltf::Gltf;
-use gltf::accessor::{DataType, Dimensions};
 use gltf::skin::Skin as GltfSkin;
 use gltf_importer::Buffers;
-use gltf_utils::{AccessorIter, Source as GltfSource};
 use itertools::multizip;
 
 use super::super::{Result, Error};
 use super::ConvertError;
+use super::util::InverseBindMatrices;
 
 pub struct Skin {
     name: String,
@@ -168,7 +165,7 @@ fn get_inverse_bind_matrices<'a>(
 ) -> Vec<Matrix4<f32>> {
     match skin.inverse_bind_matrices() {
         Some(accessor) => {
-            InverseBindMatrices(AccessorIter::new(accessor, buffers))
+            InverseBindMatrices::new(accessor, buffers)
                 .map(|matrix| {
                     Matrix4::from(matrix)
                 }).collect()
@@ -177,21 +174,5 @@ fn get_inverse_bind_matrices<'a>(
             skin.joints().map(|_| Matrix4::identity())
                 .collect()
         },
-    }
-}
-
-/// Inverse Bind Matrices iterator
-#[derive(Clone, Debug)]
-pub struct InverseBindMatrices<'a>(AccessorIter<'a, [[f32; 4]; 4]>);
-
-impl<'a> ExactSizeIterator for InverseBindMatrices<'a> {}
-impl<'a> Iterator for InverseBindMatrices<'a> {
-    type Item = [[f32; 4]; 4];
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.size_hint()
     }
 }

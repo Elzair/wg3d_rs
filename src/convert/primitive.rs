@@ -17,15 +17,16 @@ pub struct Primitive {
 
 pub fn get<'a>(
     primitive: &'a gltf_mesh::Primitive,
-    has_bones: bool,
+    weights: Option<&'a [f32]>,
+    has_joints: bool,
     buffers: &'a Buffers,
     textures: &'a Vec<Texture>,
 ) -> Result<Primitive> {
     let material = get_material(primitive, textures)?;
     let attributes = get_attributes(
         primitive,
+        has_joints,
         buffers,
-        has_bones
     )?;
     let indices = get_indices(primitive, buffers)?;
 
@@ -49,8 +50,8 @@ pub enum Attributes {
 
 fn get_attributes<'a>(
     primitive: &'a gltf_mesh::Primitive,
-    buffers: &'a Buffers,
     has_joints: bool,
+    buffers: &'a Buffers,
 ) -> Result<Attributes> {
     // Common iterators and their number of elements
     let pos_num = primitive.positions(buffers).ok_or(ConvertError::MissingAttributes)?.count();

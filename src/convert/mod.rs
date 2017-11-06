@@ -14,6 +14,7 @@ pub mod material;
 pub mod mesh;
 pub mod primitive;
 pub mod skin;
+mod util;
 pub mod texture;
 
 use self::animation::{Animation, get as get_animations};
@@ -27,7 +28,6 @@ pub struct Model {
 
 pub fn get<P: AsRef<Path>>(
     path: P,
-    animation_sample_rate: f32,
 ) -> Result<Vec<Model>> {
     // Read in all relevant data.
     let cwd = current_dir()?;
@@ -78,8 +78,9 @@ fn get_models_helper<'a>(
     // Add model if mesh is present.
     if let Some(mesh) = node.mesh() {
         let name = node.name().ok_or(ConvertError::NoName)?;
+        let weights = node.weights();
         let has_bones = node.skin().is_some();
-        let mesh = get_mesh(&mesh, name, has_bones, buffers, textures)?;
+        let mesh = get_mesh(&mesh, name, weights, has_bones, buffers, textures)?;
         models.push(Model { mesh: mesh });
     }
     
@@ -192,7 +193,7 @@ mod tests {
     #[test]
     fn test_get() {
         let path = Path::new("testmodels/gltf2/Monster/Monster.gltf");
-        match get(path, 1.0 / 3.0) {
+        match get(path) {
             Ok(_) => {},
             Err(err) => {
                 println!("{}", err.to_string());

@@ -14,16 +14,20 @@ pub struct Mesh {
 pub fn get<'a>(
     mesh: &'a GltfMesh,
     name: &'a str,
+    node_weights: Option<&'a [f32]>,
     has_bones: bool,
     buffers: &'a Buffers,
     textures: &'a Vec<Texture>,
 ) -> Result<Mesh> {
-    let mut primitives = Vec::<Primitive>::new();
+    let weights = match mesh.weights() {
+        Some(weights) => Some(weights),
+        None => node_weights,
+    };
 
-    for prim in mesh.primitives() {
-        let primitive = get_primitive(&prim, has_bones, buffers, textures)?;
-        primitives.push(primitive);
-    }
+    let primitives = mesh.primitives().map(|prim| {
+        let primitive = get_primitive(&prim, weights, has_bones, buffers, textures)?;
+        Ok(primitive)
+    }).collect::<Result<Vec<_>>>()?;
 
     Ok(Mesh {
         name: String::from(name),
