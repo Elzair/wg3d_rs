@@ -10,7 +10,7 @@ use gltf_importer::Buffers;
 use super::super::{Result, Error};
 use super::ConvertError;
 use super::skin::Skin;
-use super::util::{RotationsF32, Scales, Times, Translations, WeightsF32};
+use super::util::ChannelIterators;
 
 pub struct Animation {
     name: String,
@@ -88,10 +88,7 @@ fn get_channels<'a>(
         let sampler = channel.sampler();
         let (interpolation_method, times) = match sampler.interpolation() {
             InterpolationAlgorithm::CatmullRomSpline => {
-                let mut times = Times::new(
-                    sampler.input(),
-                    buffers
-                ).collect::<Vec<_>>();
+                let mut times = channel.times(buffers).collect::<Vec<_>>();
                 // Add stub timestamps for start and end tangents of spline.
                 let (first, last) = {
                     (times[0], times[times.len()-1])
@@ -102,10 +99,7 @@ fn get_channels<'a>(
                 (Interpolation::CatmullRom, times)
             },
             InterpolationAlgorithm::CubicSpline => {
-                let mut times = Times::new(
-                    sampler.input(),
-                    buffers
-                ).collect::<Vec<_>>();
+                let mut times = channel.times(buffers).collect::<Vec<_>>();
                 // Add stub timestamps for start and end tangents of spline.
                 let (first, last) = {
                     (times[0], times[times.len()-1])
@@ -116,18 +110,12 @@ fn get_channels<'a>(
                 (Interpolation::Cubic, times)
             },
             InterpolationAlgorithm::Linear => {
-                let times = Times::new(
-                    sampler.input(),
-                    buffers
-                ).collect::<Vec<_>>();
+                let times = channel.times(buffers).collect::<Vec<_>>();
 
                 (Interpolation::Linear, times)
             },
             InterpolationAlgorithm::Step => {
-                let times = Times::new(
-                    sampler.input(),
-                    buffers
-                ).collect::<Vec<_>>();
+                let times = channel.times(buffers).collect::<Vec<_>>();
 
                 (Interpolation::Step, times)
             },
@@ -136,12 +124,12 @@ fn get_channels<'a>(
         let target = channel.target();
         let joint_index = get_joint_index(target.node().index(), skins)?;
 
+
         match target.path() {
             TrsProperty::Translation => {
-                let translations = times.into_iter().zip(Translations::new(
-                    sampler.output(),
+                let translations = times.into_iter().zip(channel.translations(
                     buffers
-                )).map(|(time_stamp, vector)| {
+                ).unwrap()).map(|(time_stamp, vector)| {
                     Vector3Data {
                         time_stamp: time_stamp,
                         vector: Vector3::from(vector),
@@ -155,10 +143,9 @@ fn get_channels<'a>(
                 })
             },
             TrsProperty::Rotation => {
-                let rotations = times.into_iter().zip(RotationsF32::new(
-                    sampler.output(),
+                let rotations = times.into_iter().zip(channel.rotations_f32(
                     buffers
-                )).map(|(time_stamp, quaternion)| {
+                ).unwrap()).map(|(time_stamp, quaternion)| {
                     QuaternionData {
                         time_stamp: time_stamp,
                         quaternion: Quaternion::from(quaternion),
@@ -172,10 +159,9 @@ fn get_channels<'a>(
                 })
             },
             TrsProperty::Scale => {
-                let scales = times.into_iter().zip(Scales::new(
-                    sampler.output(),
+                let scales = times.into_iter().zip(channel.scales(
                     buffers
-                )).map(|(time_stamp, vector)| {
+                ).unwrap()).map(|(time_stamp, vector)| {
                     Vector3Data {
                         time_stamp: time_stamp,
                         vector: Vector3::from(vector),
@@ -189,10 +175,9 @@ fn get_channels<'a>(
                 })
             },
             TrsProperty::Weights => {
-                let weights = times.into_iter().zip(WeightsF32::new(
-                    sampler.output(),
+                let weights = times.into_iter().zip(channel.weights_f32(
                     buffers
-                )).map(|(time_stamp, scalar)| {
+                ).unwrap()).map(|(time_stamp, scalar)| {
                     ScalarData {
                         time_stamp: time_stamp,
                         scalar: scalar,

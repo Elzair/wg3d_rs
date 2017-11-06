@@ -9,7 +9,7 @@ use itertools::multizip;
 
 use super::super::{Result, Error};
 use super::ConvertError;
-use super::util::InverseBindMatrices;
+use super::util::SkinIterators;
 
 pub struct Skin {
     name: String,
@@ -163,9 +163,9 @@ fn get_inverse_bind_matrices<'a>(
     skin: &'a GltfSkin,
     buffers: &'a Buffers,
 ) -> Vec<Matrix4<f32>> {
-    match skin.inverse_bind_matrices() {
-        Some(accessor) => {
-            InverseBindMatrices::new(accessor, buffers)
+    match skin.ibms(buffers) {
+        Some(inverse_bind_matrices) => {
+            inverse_bind_matrices
                 .map(|matrix| {
                     Matrix4::from(matrix)
                 }).collect()
