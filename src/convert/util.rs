@@ -1,6 +1,5 @@
-// use byteorder::{LE, ByteOrder};
 use gltf;
-use gltf::accessor::{Accessor, DataType, Dimensions};
+use gltf::accessor::{DataType, Dimensions};
 use gltf_utils::{AccessorIter, Denormalize, Source};
 
 /// Extra methods for working with `gltf::Skin`.
@@ -20,6 +19,7 @@ impl<'a> SkinIterators<'a> for gltf::Skin<'a> {
 pub struct InverseBindMatrices<'a>(AccessorIter<'a, [[f32; 4]; 4]>);
 
 impl<'a> ExactSizeIterator for InverseBindMatrices<'a> {}
+
 impl<'a> Iterator for InverseBindMatrices<'a> {
     type Item = [[f32; 4]; 4];
     fn next(&mut self) -> Option<Self::Item> {
@@ -39,14 +39,14 @@ pub trait ChannelIterators<'a> {
     /// Visits the translation samples of a channel.
     fn translations<S: Source>(&'a self, source: &'a S) -> Option<Translations<'a>>;
 
-    /// Visits the translation samples of a channel.
+    /// Visits the rotation samples of a channel.
     fn rotations_f32<S: Source>(&'a self, source: &'a S) -> Option<RotationsF32<'a>>;
 
-    /// Visits the translation samples of a channel.
+    /// Visits the scaling samples of a channel.
     fn scales<S: Source>(&'a self, source: &'a S) -> Option<Scales<'a>>;
 
-    /// Visits the translation samples of a channel.
-    fn weights_f32<S: Source>(&'a self, source: &'a S) -> Option<WeightsF32<'a>>;
+    /// Visits the weight samples of a channel.
+    fn weights_f32<S: Source>(&'a self, source: &'a S) -> Option<MorphWeightsF32<'a>>;
 }
 
 impl<'a> ChannelIterators<'a> for gltf::animation::Channel<'a> {
@@ -54,7 +54,6 @@ impl<'a> ChannelIterators<'a> for gltf::animation::Channel<'a> {
         Times(AccessorIter::new(self.sampler().input(), source))
     }
  
-    /// Visits the translation samples of a channel.
     fn translations<S: Source>(&'a self, source: &'a S) -> Option<Translations<'a>> {
         match self.target().path() {
             gltf::animation::TrsProperty::Translation => {
@@ -64,7 +63,6 @@ impl<'a> ChannelIterators<'a> for gltf::animation::Channel<'a> {
         }
     }
 
-    /// Visits the translation samples of a channel.
     fn rotations_f32<S: Source>(&'a self, source: &'a S) -> Option<RotationsF32<'a>> {
         match self.target().path() {
             gltf::animation::TrsProperty::Rotation => {
@@ -74,7 +72,6 @@ impl<'a> ChannelIterators<'a> for gltf::animation::Channel<'a> {
         }
     }
 
-    /// Visits the translation samples of a channel.
     fn scales<S: Source>(&'a self, source: &'a S) -> Option<Scales<'a>> {
         match self.target().path() {
             gltf::animation::TrsProperty::Scale => {
@@ -84,11 +81,10 @@ impl<'a> ChannelIterators<'a> for gltf::animation::Channel<'a> {
         }
     }
 
-    /// Visits the translation samples of a channel.
-    fn weights_f32<S: Source>(&'a self, source: &'a S) -> Option<WeightsF32<'a>> {
+    fn weights_f32<S: Source>(&'a self, source: &'a S) -> Option<MorphWeightsF32<'a>> {
         match self.target().path() {
             gltf::animation::TrsProperty::Weights => {
-                Some(WeightsF32(Weights::new(self.sampler().output(), source)))
+                Some(MorphWeightsF32(MorphWeights::new(self.sampler().output(), source)))
             },
             _ => None,
         }
@@ -100,6 +96,7 @@ impl<'a> ChannelIterators<'a> for gltf::animation::Channel<'a> {
 pub struct Times<'a>(AccessorIter<'a, f32>);
 
 impl<'a> ExactSizeIterator for Times<'a> {}
+
 impl<'a> Iterator for Times<'a> {
     type Item = f32;
     
@@ -183,28 +180,28 @@ impl<'a> Iterator for Scales<'a> {
 
 /// Morph-target weights of type `f32`.
 #[derive(Clone, Debug)]
-pub struct WeightsF32<'a>(Weights<'a>);
+pub struct MorphWeightsF32<'a>(MorphWeights<'a>);
 
-impl<'a> ExactSizeIterator for WeightsF32<'a> {}
+impl<'a> ExactSizeIterator for MorphWeightsF32<'a> {}
 
-impl<'a> Iterator for WeightsF32<'a> {
+impl<'a> Iterator for MorphWeightsF32<'a> {
     type Item = f32;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.0 {
-            Weights::F32(ref mut i) => i.next(),
-            Weights::U8(ref mut i) => i.next().map(|x| x.denormalize()),
-            Weights::I16(ref mut i) => i.next().map(|x| x as f32 / 32767.0),
-            Weights::U16(ref mut i) => i.next().map(|x| x.denormalize()),
+            MorphWeights::F32(ref mut i) => i.next(),
+            MorphWeights::U8(ref mut i) => i.next().map(|x| x.denormalize()),
+            MorphWeights::I16(ref mut i) => i.next().map(|x| x as f32 / 32767.0),
+            MorphWeights::U16(ref mut i) => i.next().map(|x| x.denormalize()),
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self.0 {
-            Weights::F32(ref i) => i.size_hint(),
-            Weights::U8(ref i) => i.size_hint(),
-            Weights::I16(ref i) => i.size_hint(),
-            Weights::U16(ref i) => i.size_hint(),
+            MorphWeights::F32(ref i) => i.size_hint(),
+            MorphWeights::U8(ref i) => i.size_hint(),
+            MorphWeights::I16(ref i) => i.size_hint(),
+            MorphWeights::U16(ref i) => i.size_hint(),
         }
     }
 }
@@ -219,7 +216,7 @@ enum Rotations<'a> {
 }
 
 impl<'a> Rotations<'a> {
-    fn new<S: Source>(accessor: Accessor<'a>, source: &'a S) -> Rotations<'a> {
+    fn new<S: Source>(accessor: gltf::Accessor<'a>, source: &'a S) -> Rotations<'a> {
         match accessor.dimensions() {
             Dimensions::Vec4 => {
                 match accessor.data_type() {
@@ -245,29 +242,29 @@ impl<'a> Rotations<'a> {
 
 /// Weights
 #[derive(Clone, Debug)]
-enum Weights<'a> {
+enum MorphWeights<'a> {
     F32(AccessorIter<'a, f32>),
     U8(AccessorIter<'a, u8>),
     I16(AccessorIter<'a, i16>), 
     U16(AccessorIter<'a, u16>),
 }
 
-impl<'a> Weights<'a> {
-    fn new<S: Source>(accessor: Accessor<'a>, source: &'a S) -> Weights<'a> {
+impl<'a> MorphWeights<'a> {
+    fn new<S: Source>(accessor: gltf::Accessor<'a>, source: &'a S) -> MorphWeights<'a> {
         match accessor.dimensions() {
             Dimensions::Scalar => {
                 match accessor.data_type() {
                     DataType::F32 => {
-                        Weights::F32(AccessorIter::new(accessor, source))
+                        MorphWeights::F32(AccessorIter::new(accessor, source))
                     },
                     DataType::U8 => {
-                        Weights::U8(AccessorIter::new(accessor, source))
+                        MorphWeights::U8(AccessorIter::new(accessor, source))
                     },
                     DataType::I16 => {
-                        Weights::I16(AccessorIter::new(accessor, source))
+                        MorphWeights::I16(AccessorIter::new(accessor, source))
                     },
                     DataType::U16 => {
-                        Weights::U16(AccessorIter::new(accessor, source))
+                        MorphWeights::U16(AccessorIter::new(accessor, source))
                     },
                     _ => unimplemented!(),
                 }
@@ -276,5 +273,3 @@ impl<'a> Weights<'a> {
         }
     }
 }
-
-
