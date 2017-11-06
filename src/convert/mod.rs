@@ -96,10 +96,6 @@ fn get_models_helper<'a>(
 pub enum ConvertError {
     /// Primitive missing required attributes
     MissingAttributes,
-    /// Unsupported data type
-    UnsupportedDataType,
-    /// Unsupported dimensions
-    UnsupportedDimensions,
     /// Image buffer not present
     MissingImageBuffer,
     /// No specified root node of skeleton for a skin
@@ -110,8 +106,6 @@ pub enum ConvertError {
     NoName,
     /// Invalid skeleton joint index
     InvalidJoint,
-    /// Non uniform scaling animation
-    NonUniformScaling,
     /// Too many joints
     TooManyJoints,
     /// Something weird
@@ -123,12 +117,6 @@ impl fmt::Display for ConvertError {
         match *self {
             ConvertError::MissingAttributes => {
                 write!(fmt, "Primitive missing required attributes")
-            },
-            ConvertError::UnsupportedDataType => {
-                write!(fmt, "Primitive attribute using unsupported data type")
-            },
-            ConvertError::UnsupportedDimensions => {
-                write!(fmt, "Primitive attribute using unsupported dimensions")
             },
             ConvertError::MissingImageBuffer => {
                 write!(fmt, "Missing image buffer")
@@ -145,9 +133,6 @@ impl fmt::Display for ConvertError {
             ConvertError::InvalidJoint => {
                 write!(fmt, "Invalid skeleton joint index")
             },
-            ConvertError::NonUniformScaling => {
-                write!(fmt, "Non uniform scaling animation")
-            },
             ConvertError::TooManyJoints => {
                 write!(fmt, "Too many joints")
             },
@@ -161,26 +146,17 @@ impl fmt::Display for ConvertError {
 impl error::Error for ConvertError {
     fn description(&self) -> &str {
         static MISSING_ATTRIBUTES: &'static str = "Primitive missing required attributes";
-        static UNSUPPORTED_DATA_TYPE: &'static str = "Primitive attribute using unsupported data type";
-        static UNSUPPORTED_DIMENSIONS: &'static str = "Primitive attribute using unsupported dimensions";
         static MISSING_IMAGE_BUFFER: &'static str = "Missing image buffer";
         static NO_SKELETON: &'static str = "No specified root node of skeleton for a skin";
         static NO_DEFAULT_SCENE: &'static str = "No default scene present";
         static NO_NAME: &'static str = "No name for a mesh, skin, or animation";
         static INVALID_JOINT: &'static str = "Invalid skeleton joint index";
-        static NONUNIFORM_SCALING: &'static str = "Non uniform scaling animation";
         static TOO_MANY_JOINTS: &'static str = "Too many joints";
         static OTHER: &'static str = "Something weird happened";
 
         match *self {
             ConvertError::MissingAttributes => {
                 MISSING_ATTRIBUTES
-            },
-            ConvertError::UnsupportedDataType => {
-                UNSUPPORTED_DATA_TYPE
-            },
-            ConvertError::UnsupportedDimensions => {
-                UNSUPPORTED_DIMENSIONS
             },
             ConvertError::MissingImageBuffer => {
                 MISSING_IMAGE_BUFFER
@@ -196,9 +172,6 @@ impl error::Error for ConvertError {
             },
             ConvertError::InvalidJoint => {
                 INVALID_JOINT
-            },
-            ConvertError::NonUniformScaling => {
-                NONUNIFORM_SCALING
             },
             ConvertError::TooManyJoints => {
                 TOO_MANY_JOINTS

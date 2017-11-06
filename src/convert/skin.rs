@@ -3,11 +3,12 @@ use std::u16;
 use std::usize;
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use cgmath::{Matrix4, SquareMatrix};
+use cgmath::{Matrix4, SquareMatrix, Vector4};
 use gltf::Gltf;
 use gltf::accessor::{DataType, Dimensions};
 use gltf::skin::Skin as GltfSkin;
 use gltf_importer::Buffers;
+use gltf_utils::{AccessorIter, Source as GltfSource};
 use itertools::multizip;
 
 use super::super::{Result, Error};
@@ -32,14 +33,6 @@ impl Skin {
         }
 
         None
-    }
-    
-    pub fn get_node_index(&self, joint_index: u16) -> Option<usize> {
-        if joint_index as usize >= self.joints.len() {
-            None
-        } else {
-            Some(self.joints.get(joint_index as usize).unwrap().old_index)
-        }
     }
 }
 
@@ -106,7 +99,7 @@ fn get_joints<'a>(
     let transforms = skin.joints().map(|joint| {
         Matrix4::<f32>::from(joint.transform().matrix())
     }).collect::<Vec<_>>();
-    let inverse_bind_matrices = get_inverse_bind_matrices(&skin, buffers)?;
+    let inverse_bind_matrices = get_inverse_bind_matrices(&skin, buffers);
     let parent_indices = get_parent_indices(skin)?;
     let old_indices = skin.joints().map(|joint| joint.index()).collect::<Vec<_>>();
 
@@ -168,64 +161,37 @@ fn get_parent_indices<'a>(
     }).collect::<Result<Vec<_>>>()
 }
 
+
 fn get_inverse_bind_matrices<'a>(
     skin: &'a GltfSkin,
     buffers: &'a Buffers,
-) -> Result<Vec<Matrix4<f32>>> {
+) -> Vec<Matrix4<f32>> {
     match skin.inverse_bind_matrices() {
         Some(accessor) => {
-            match accessor.dimensions() {
-                Dimensions::Mat4 => {
-                    match accessor.data_type() {
-                        DataType::F32 => {
-                            let contents = buffers.view(&accessor.view())
-                                .ok_or(ConvertError::Other)?;
-                            let mut ibms = Vec::<Matrix4<f32>>::with_capacity(accessor.count());
-                            let mut offset = accessor.offset();
-
-                            #[allow(unused_variables)]
-                            for i in 0..accessor.count() {
-                                let sl = &contents[offset..(offset + accessor.size())];
-                                let mut cursor = Cursor::new(sl);
-
-                                let c0r0 = cursor.read_f32::<LittleEndian>()?;
-                                let c0r1 = cursor.read_f32::<LittleEndian>()?;
-                                let c0r2 = cursor.read_f32::<LittleEndian>()?;
-                                let c0r3 = cursor.read_f32::<LittleEndian>()?;
-                                let c1r0 = cursor.read_f32::<LittleEndian>()?;
-                                let c1r1 = cursor.read_f32::<LittleEndian>()?;
-                                let c1r2 = cursor.read_f32::<LittleEndian>()?;
-                                let c1r3 = cursor.read_f32::<LittleEndian>()?;
-                                let c2r0 = cursor.read_f32::<LittleEndian>()?;
-                                let c2r1 = cursor.read_f32::<LittleEndian>()?;
-                                let c2r2 = cursor.read_f32::<LittleEndian>()?;
-                                let c2r3 = cursor.read_f32::<LittleEndian>()?;
-                                let c3r0 = cursor.read_f32::<LittleEndian>()?;
-                                let c3r1 = cursor.read_f32::<LittleEndian>()?;
-                                let c3r2 = cursor.read_f32::<LittleEndian>()?;
-                                let c3r3 = cursor.read_f32::<LittleEndian>()?;
-
-                                ibms.push(Matrix4::new(
-                                    c0r0, c0r1, c0r2, c0r3,
-                                    c1r0, c1r1, c1r2, c1r3,
-                                    c2r0, c2r1, c2r2, c2r3,
-                                    c3r0, c3r1, c3r2, c3r3,
-                                ));
-
-                                offset = offset + accessor.view().stride().unwrap_or(accessor.size());
-                            }
-
-                            Ok(ibms)
-                        },
-                        _ => Err(Error::Convert(ConvertError::UnsupportedDataType)),
-                    }
-                },
-                _ => Err(Error::Convert(ConvertError::UnsupportedDimensions)),
-            }
+            InverseBindMatrices(AccessorIter::new(accessor, buffers))
+                .map(|matrix| {
+                    Matrix4::from(matrix)
+                }).collect()
         },
         None => {
-            Ok(skin.joints().map(|_| Matrix4::<f32>::identity())
-               .collect())
+            skin.joints().map(|_| Matrix4::identity())
+                .collect()
         },
+    }
+}
+
+/// Inverse Bind Matrices iterator
+#[derive(Clone, Debug)]
+pub struct InverseBindMatrices<'a>(AccessorIter<'a, [[f32; 4]; 4]>);
+
+impl<'a> ExactSizeIterator for InverseBindMatrices<'a> {}
+impl<'a> Iterator for InverseBindMatrices<'a> {
+    type Item = [[f32; 4]; 4];
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
     }
 }
