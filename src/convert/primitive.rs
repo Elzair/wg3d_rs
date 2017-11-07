@@ -1,5 +1,5 @@
 use cgmath::{Vector2, Vector3, Vector4, Matrix4};
-use gltf::mesh as gltf_mesh;
+use gltf::mesh::Primitive as GltfPrimitive;
 use gltf_importer::Buffers;
 use gltf_utils::PrimitiveIterators;
 use itertools::multizip;
@@ -7,6 +7,7 @@ use itertools::multizip;
 use super::super::{Result, Error};
 use super::ConvertError;
 use super::material::{Material, get as get_material};
+use super::morph_target::{MorphTarget, get as get_morph_targets};
 use super::texture::Texture;
 
 pub struct Primitive {
@@ -16,12 +17,13 @@ pub struct Primitive {
 }
 
 pub fn get<'a>(
-    primitive: &'a gltf_mesh::Primitive,
+    primitive: &'a GltfPrimitive,
     weights: Option<&'a [f32]>,
     has_joints: bool,
     buffers: &'a Buffers,
     textures: &'a Vec<Texture>,
 ) -> Result<Primitive> {
+    let morph_targets = get_morph_targets(primitive, buffers)?;
     let material = get_material(primitive, textures)?;
     let attributes = get_attributes(
         primitive,
@@ -49,7 +51,7 @@ pub enum Attributes {
 }
 
 fn get_attributes<'a>(
-    primitive: &'a gltf_mesh::Primitive,
+    primitive: &'a GltfPrimitive,
     has_joints: bool,
     buffers: &'a Buffers,
 ) -> Result<Attributes> {
@@ -310,7 +312,7 @@ pub struct VertexTex1TangentBones {
 }
 
 fn get_indices<'a>(
-    primitive: &'a gltf_mesh::Primitive,
+    primitive: &'a GltfPrimitive,
     buffers: &'a Buffers,
 ) -> Result<Vec<u32>> {
     let iter = primitive.indices_u32(buffers).ok_or(ConvertError::MissingAttributes)?;

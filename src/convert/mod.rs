@@ -12,6 +12,7 @@ use super::Result;
 pub mod animation;
 pub mod material;
 pub mod mesh;
+mod morph_target;
 pub mod primitive;
 pub mod skin;
 mod util;
