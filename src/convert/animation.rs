@@ -1,16 +1,18 @@
-// use std::io::Cursor;
 use std::u16;
 
-// use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::{Vector3, Quaternion};
-use gltf::Gltf;
+use gltf::gltf::Animations as GltfAnimations;
 use gltf::animation::{Animation as GltfAnimation, InterpolationAlgorithm, TrsProperty};
 use gltf_importer::Buffers;
 
-use super::super::{Result, Error};
+use super::super::Result;
 use super::ConvertError;
-use super::skin::{Skin, Skins};
+use super::skin::Skins;
 use super::util::ChannelIterators;
+
+pub struct Animations {
+    animations: Vec<Animation>,
+}
 
 pub struct Animation {
     name: String,
@@ -18,26 +20,23 @@ pub struct Animation {
 }
 
 pub fn get<'a>(
-    gltf: &'a Gltf,
+    animations: GltfAnimations,
     skins: &'a Skins,
     buffers: &'a Buffers,
-) -> Result<Vec<Animation>> {
-    gltf.animations().map(|animation| {
-        get_animation(&animation, skins, buffers)
-    }).collect::<Result<Vec<_>>>()
-}
+) -> Result<Animations> {
+    let my_animations = animations.map(|animation| {
+        let name = animation.name().ok_or(ConvertError::NoName)?;
+        let channels = get_channels(&animation, skins, buffers)?;
+        
+        Ok(Animation {
+            name: String::from(name),
+            channels: channels,
+        })
 
-fn get_animation<'a>(
-    animation: &'a GltfAnimation,
-    skins: &'a Skins,
-    buffers: &'a Buffers,
-) -> Result<Animation> {
-    let name = animation.name().ok_or(ConvertError::NoName)?;
-    let channels = get_channels(animation, skins, buffers)?;
-    
-    Ok(Animation {
-        name: String::from(name),
-        channels: channels,
+    }).collect::<Result<Vec<_>>>()?;
+
+    Ok(Animations {
+        animations: my_animations,
     })
 }
 

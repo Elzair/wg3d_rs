@@ -45,7 +45,7 @@ pub fn get<P: AsRef<Path>>(
     let skins = get_skins(gltf.skins(), &buffers)?;
 
     // Retrieve animations.
-    let animations = get_animations(&gltf, &skins, &buffers)?;
+    let animations = get_animations(gltf.animations(), &skins, &buffers)?;
 
     // Retrieve models.
     let models = get_models(&scene, &buffers, &materials)?;
