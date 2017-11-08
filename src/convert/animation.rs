@@ -9,7 +9,7 @@ use gltf_importer::Buffers;
 
 use super::super::{Result, Error};
 use super::ConvertError;
-use super::skin::Skin;
+use super::skin::{Skin, Skins};
 use super::util::ChannelIterators;
 
 pub struct Animation {
@@ -19,7 +19,7 @@ pub struct Animation {
 
 pub fn get<'a>(
     gltf: &'a Gltf,
-    skins: &'a [Skin],
+    skins: &'a Skins,
     buffers: &'a Buffers,
 ) -> Result<Vec<Animation>> {
     gltf.animations().map(|animation| {
@@ -29,7 +29,7 @@ pub fn get<'a>(
 
 fn get_animation<'a>(
     animation: &'a GltfAnimation,
-    skins: &'a [Skin],
+    skins: &'a Skins,
     buffers: &'a Buffers,
 ) -> Result<Animation> {
     let name = animation.name().ok_or(ConvertError::NoName)?;
@@ -81,7 +81,7 @@ pub struct ScalarData {
 
 fn get_channels<'a>(
     animation: &'a GltfAnimation,
-    skins: &'a [Skin],
+    skins: &'a Skins,
     buffers: &'a Buffers,
 ) -> Result<Vec<Channel>> {
     animation.channels().map(|channel| {
@@ -122,8 +122,8 @@ fn get_channels<'a>(
         };
 
         let target = channel.target();
-        let joint_index = get_joint_index(target.node().index(), skins)?;
-
+        let joint_index = skins.get_joint_index(target.node().index())
+            .ok_or(ConvertError::InvalidJoint)?;
 
         match target.path() {
             TrsProperty::Translation => {
@@ -192,19 +192,6 @@ fn get_channels<'a>(
             },
         }
     }).collect::<Result<Vec<_>>>()
-}
-
-fn get_joint_index<'a>(
-    node_index: usize,
-    skins: &'a [Skin],
-) -> Result<u16> {
-    for skin in skins.iter() {
-        if let Some(joint_index) = skin.get_joint_index(node_index) {
-            return Ok(joint_index);
-        }
-    }
-
-    Err(Error::Convert(ConvertError::InvalidJoint))
 }
 
 pub enum Interpolation {

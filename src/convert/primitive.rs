@@ -1,42 +1,51 @@
-use cgmath::{Vector2, Vector3, Vector4, Matrix4};
-use gltf::mesh::Primitive as GltfPrimitive;
+use cgmath::{Vector2, Vector3, Vector4};
+use gltf::mesh::{Primitive as GltfPrimitive, Primitives as GltfPrimitives};
 use gltf_importer::Buffers;
 use gltf_utils::PrimitiveIterators;
 use itertools::multizip;
 
 use super::super::{Result, Error};
 use super::ConvertError;
-use super::material::{Material, get as get_material};
+use super::material::Materials;
 use super::morph_target::{MorphTarget, get as get_morph_targets};
 use super::texture::Texture;
 
 pub struct Primitive {
-    material: Material,
+    material: String,
     attributes: Attributes,
     indices: Vec<u32>,
 }
 
 pub fn get<'a>(
-    primitive: &'a GltfPrimitive,
+    primitives: GltfPrimitives,
     weights: Option<&'a [f32]>,
     has_joints: bool,
     buffers: &'a Buffers,
-    textures: &'a Vec<Texture>,
-) -> Result<Primitive> {
-    let morph_targets = get_morph_targets(primitive, buffers)?;
-    let material = get_material(primitive, textures)?;
-    let attributes = get_attributes(
-        primitive,
-        has_joints,
-        buffers,
-    )?;
-    let indices = get_indices(primitive, buffers)?;
+    materials: &'a Materials,
+) -> Result<Vec<Primitive>> {
+    primitives.map(|primitive| {
+        // let morph_targets = get_morph_targets(primitive, buffers)?;
 
-    Ok(Primitive {
-        material: material,
-        attributes: attributes,
-        indices: indices,
-    })
+        // The default material is not supported.
+        let material_index = match primitive.material().index() {
+            Some(index) => index,
+            None => { return Err(Error::Convert(ConvertError::NoMaterial)); },
+        };
+        let material = materials.get(material_index)
+            .ok_or(ConvertError::Other)?;
+        let attributes = get_attributes(
+            &primitive,
+            has_joints,
+            buffers,
+        )?;
+        let indices = get_indices(&primitive, buffers)?;
+
+        Ok(Primitive {
+            material: material.to_owned(),
+            attributes: attributes,
+            indices: indices,
+        })
+    }).collect()
 }
 
 pub enum Attributes {

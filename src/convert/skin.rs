@@ -2,7 +2,7 @@ use std::u16;
 use std::usize;
 
 use cgmath::{Matrix4, SquareMatrix};
-use gltf::Gltf;
+use gltf::gltf::Skins as GltfSkins;
 use gltf::skin::Skin as GltfSkin;
 use gltf_importer::Buffers;
 use itertools::multizip;
@@ -10,6 +10,22 @@ use itertools::multizip;
 use super::super::{Result, Error};
 use super::ConvertError;
 use super::util::SkinIterators;
+
+pub struct Skins {
+    skins: Vec<Skin>,
+}
+
+impl Skins {
+    pub fn get_joint_index(&self, node_index: usize) -> Option<u16> {
+        for skin in self.skins.iter() {
+            if let Some(index) = skin.get_joint_index(node_index) {
+                return Some(index);
+            }
+        }
+
+        None
+    }
+}
 
 pub struct Skin {
     name: String,
@@ -33,27 +49,33 @@ impl Skin {
     }
 }
 
-pub fn get<'a>(
-    gltf: &'a Gltf,
-    buffers: &'a Buffers,
-) -> Result<Vec<Skin>> {
-    gltf.skins().map(|skin| {
-        get_skin(&skin, buffers)
-    }).collect()
+pub struct Joint {
+    name: String,
+    local_transform: Matrix4<f32>,
+    inverse_bind_matrix: Matrix4<f32>,
+    parent: u16,
+    old_index: usize,
 }
 
-fn get_skin<'a>(
-    skin: &'a GltfSkin,
-    buffers: &'a Buffers,
-) -> Result<Skin> {
-    let name = skin.name().ok_or(ConvertError::NoName)?;
-    let root_index = get_root_index(skin)?;
-    let joints = get_joints(skin, buffers)?;
 
-    Ok(Skin {
-        name: String::from(name),
-        root_index: root_index,
-        joints: joints,
+pub fn get<'a>(
+    skins: GltfSkins,
+    buffers: &'a Buffers,
+) -> Result<Skins> {
+    let skins = skins.map(|skin| {
+        let name = skin.name().ok_or(ConvertError::NoName)?;
+        let root_index = get_root_index(&skin)?;
+        let joints = get_joints(&skin, buffers)?;
+
+        Ok(Skin {
+            name: String::from(name),
+            root_index: root_index,
+            joints: joints,
+        })
+    }).collect::<Result<Vec<_>>>()?;
+
+    Ok(Skins {
+        skins: skins,
     })
 }
 
@@ -78,14 +100,6 @@ fn get_root_index<'a>(
     else {
         Ok(root_index as u16)
     }
-}
-
-pub struct Joint {
-    name: String,
-    local_transform: Matrix4<f32>,
-    inverse_bind_matrix: Matrix4<f32>,
-    parent: u16,
-    old_index: usize,
 }
 
 fn get_joints<'a>(

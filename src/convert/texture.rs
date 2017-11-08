@@ -1,12 +1,26 @@
 use std::path::Path;
 
-use gltf::{Gltf, texture};
-use gltf::image as gltf_image;
+use gltf::image::Data as GltfData;
+use gltf::gltf::Textures as GltfTextures;
+use gltf::texture::{MinFilter as GltfMinFilter, MagFilter as GltfMagFilter, WrappingMode as GltfWrappingMode};
 use gltf_importer::Buffers;
-use image::{self, GenericImage};
+use image::{GenericImage, DynamicImage, load_from_memory as load_image_from_memory, open as open_image};
 
-use super::super::{Result, Error};
+use super::super::Result;
 use super::ConvertError;
+
+pub struct Textures {
+    textures: Vec<Texture>,
+}
+
+impl Textures {
+    pub fn get(&self, index: usize) -> Option<&str> {
+        match self.textures.iter().nth(index) {
+            Some(texture) => Some(texture.name.as_ref()),
+            None => None,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Texture {
@@ -54,59 +68,54 @@ pub enum Format {
 
 pub fn get<'a>(
     base_path: &'a Path,
-    gltf: &'a Gltf,
+    textures: GltfTextures,
     buffers: &'a Buffers
-) -> Result<Vec<Texture>> {
-    gltf.textures().map(|texture| {
+) -> Result<Textures> {
+    let my_textures = textures.map(|texture| {
         let name = texture.name().ok_or(ConvertError::NoName)?;
         let sampler = texture.sampler();
         let mag_filter = match sampler.mag_filter() {
-            Some(texture::MagFilter::Linear) => MagFilter::Linear,
-            Some(texture::MagFilter::Nearest) => MagFilter::Nearest,
+            Some(GltfMagFilter::Linear) => MagFilter::Linear,
+            Some(GltfMagFilter::Nearest) => MagFilter::Nearest,
             None => MagFilter::Nearest,
         };
         let min_filter = match sampler.min_filter() {
-            Some(texture::MinFilter::Linear) => MinFilter::Linear,
-            Some(texture::MinFilter::Nearest) => MinFilter::Nearest,
-            Some(texture::MinFilter::LinearMipmapNearest) => MinFilter::LinearMipmapNearest,
-            Some(texture::MinFilter::NearestMipmapNearest) => MinFilter::NearestMipmapNearest,
-            Some(texture::MinFilter::LinearMipmapLinear) => MinFilter::LinearMipmapLinear,
-            Some(texture::MinFilter::NearestMipmapLinear) => MinFilter::NearestMipmapLinear,
+            Some(GltfMinFilter::Linear) => MinFilter::Linear,
+            Some(GltfMinFilter::Nearest) => MinFilter::Nearest,
+            Some(GltfMinFilter::LinearMipmapNearest) => MinFilter::LinearMipmapNearest,
+            Some(GltfMinFilter::NearestMipmapNearest) => MinFilter::NearestMipmapNearest,
+            Some(GltfMinFilter::LinearMipmapLinear) => MinFilter::LinearMipmapLinear,
+            Some(GltfMinFilter::NearestMipmapLinear) => MinFilter::NearestMipmapLinear,
             None => MinFilter::Nearest,
         };
         let wrap_s = match sampler.wrap_s() {
-            texture::WrappingMode::ClampToEdge => WrappingMode::ClampToEdge,
-            texture::WrappingMode::MirroredRepeat => WrappingMode::MirroredRepeat,
-            texture::WrappingMode::Repeat => WrappingMode::Repeat,
+            GltfWrappingMode::ClampToEdge => WrappingMode::ClampToEdge,
+            GltfWrappingMode::MirroredRepeat => WrappingMode::MirroredRepeat,
+            GltfWrappingMode::Repeat => WrappingMode::Repeat,
         };
         let wrap_t = match sampler.wrap_t() {
-            texture::WrappingMode::ClampToEdge => WrappingMode::ClampToEdge,
-            texture::WrappingMode::MirroredRepeat => WrappingMode::MirroredRepeat,
-            texture::WrappingMode::Repeat => WrappingMode::Repeat,
+            GltfWrappingMode::ClampToEdge => WrappingMode::ClampToEdge,
+            GltfWrappingMode::MirroredRepeat => WrappingMode::MirroredRepeat,
+            GltfWrappingMode::Repeat => WrappingMode::Repeat,
         };
 
         // Get contents of image as either byte array or `image::DynamicImage`.
         let img = match texture.source().data() {
-            gltf_image::Data::View { view, .. } => {
-                if let Some(contents) = buffers.view(&view) {
-                    let img = image::load_from_memory(contents)?;
-                    img
-                } else {
-                    return Err(Error::Convert(ConvertError::MissingImageBuffer));
-                }
+            GltfData::View { view, .. } => {
+                let contents = buffers.view(&view).ok_or(ConvertError::MissingImageBuffer)?;
+                load_image_from_memory(contents)?
             },
-            gltf_image::Data::Uri{ uri, .. } => {
+            GltfData::Uri{ uri, .. } => {
                 let full_path = base_path.to_path_buf().join(uri);
-                let img = image::open(full_path)?;
-                img
+                open_image(full_path)?
             },
         };
 
         let format = match &img {
-            &image::DynamicImage::ImageLuma8(_) => Format::GrayImage,
-            &image::DynamicImage::ImageLumaA8(_) => Format::GrayAlphaImage,
-            &image::DynamicImage::ImageRgb8(_) => Format::RgbImage,
-            &image::DynamicImage::ImageRgba8(_) => Format::RgbaImage,
+            &DynamicImage::ImageLuma8(_) => Format::GrayImage,
+            &DynamicImage::ImageLumaA8(_) => Format::GrayAlphaImage,
+            &DynamicImage::ImageRgb8(_) => Format::RgbImage,
+            &DynamicImage::ImageRgba8(_) => Format::RgbaImage,
         };
 
         Ok(Texture {
@@ -120,7 +129,11 @@ pub fn get<'a>(
             format: format,
             contents: img.raw_pixels(),
         })
-    }).collect()
+    }).collect::<Result<Vec<_>>>()?;
+
+    Ok(Textures {
+        textures: my_textures,
+    })
 }
 
 #[cfg(test)]

@@ -18,10 +18,11 @@ pub mod skin;
 mod util;
 pub mod texture;
 
-use self::animation::{Animation, get as get_animations};
+use self::animation::get as get_animations;
+use self::material::{Materials, get as get_materials};
 use self::mesh::{Mesh, get as get_mesh};
-use self::skin::{Skin, get as get_skins};
-use self::texture::{Texture, get as get_textures};
+use self::skin::get as get_skins;
+use self::texture::{Textures, get as get_textures};
 
 pub struct Model {
     mesh: Mesh,
@@ -34,19 +35,20 @@ pub fn get<P: AsRef<Path>>(
     let cwd = current_dir()?;
     let parent = path.as_ref().parent().unwrap_or(&cwd);
     let (gltf, buffers) = import(&path)?;
-    let textures = get_textures(&parent, &gltf, &buffers)?;
+    let textures = get_textures(&parent, gltf.textures(), &buffers)?;
+    let materials = get_materials(gltf.materials(), &textures)?;
 
     // Retrieve default scene from gltf.
     let scene = gltf.default_scene().ok_or(ConvertError::NoDefaultScene)?;
 
     // Retrieve skins.
-    let skins = get_skins(&gltf, &buffers)?;
+    let skins = get_skins(gltf.skins(), &buffers)?;
 
     // Retrieve animations.
     let animations = get_animations(&gltf, &skins, &buffers)?;
 
     // Retrieve models.
-    let models = get_models(&scene, &buffers, &textures)?;
+    let models = get_models(&scene, &buffers, &materials)?;
 
     Ok(models)
 }
@@ -54,7 +56,7 @@ pub fn get<P: AsRef<Path>>(
 pub fn get_models<'a>(
     scene: &'a Scene,
     buffers: &'a Buffers,
-    textures: &'a Vec<Texture>,
+    materials: &'a Materials,
 ) -> Result<Vec<Model>> {
     let mut models = Vec::<Model>::new();
 
@@ -63,7 +65,7 @@ pub fn get_models<'a>(
             &root_node,
             &mut models,
             buffers,
-            textures
+            materials,
         )?;
     }
 
@@ -74,20 +76,20 @@ fn get_models_helper<'a>(
     node: &'a Node,
     models: &'a mut Vec<Model>,
     buffers: &'a Buffers,
-    textures: &'a Vec<texture::Texture>,
+    materials: &'a Materials,
 ) -> Result<()> {
     // Add model if mesh is present.
     if let Some(mesh) = node.mesh() {
         let name = node.name().ok_or(ConvertError::NoName)?;
         let weights = node.weights();
         let has_bones = node.skin().is_some();
-        let mesh = get_mesh(&mesh, name, weights, has_bones, buffers, textures)?;
+        let mesh = get_mesh(&mesh, name, weights, has_bones, buffers, materials)?;
         models.push(Model { mesh: mesh });
     }
     
     // Try to find models in child nodes.
     for node in node.children() {
-        get_models_helper(&node, models, buffers, textures)?;
+        get_models_helper(&node, models, buffers, materials)?;
     }
 
     Ok(())
@@ -110,6 +112,8 @@ pub enum ConvertError {
     InvalidJoint,
     /// Too many joints
     TooManyJoints,
+    /// No material assigned
+    NoMaterial,
     /// Something weird
     Other,
 }
@@ -138,6 +142,9 @@ impl fmt::Display for ConvertError {
             ConvertError::TooManyJoints => {
                 write!(fmt, "Too many joints")
             },
+            ConvertError::NoMaterial => {
+                write!(fmt, "No material assigned")
+            },
             ConvertError::Other => {
                 write!(fmt, "Something weird happened")
             },
@@ -154,6 +161,7 @@ impl error::Error for ConvertError {
         static NO_NAME: &'static str = "No name for a mesh, skin, or animation";
         static INVALID_JOINT: &'static str = "Invalid skeleton joint index";
         static TOO_MANY_JOINTS: &'static str = "Too many joints";
+        static NO_MATERIAL: &'static str = "No material assigned";
         static OTHER: &'static str = "Something weird happened";
 
         match *self {
@@ -178,6 +186,9 @@ impl error::Error for ConvertError {
             ConvertError::TooManyJoints => {
                 TOO_MANY_JOINTS
             },
+            ConvertError::NoMaterial => {
+                NO_MATERIAL
+            }
             ConvertError::Other => {
                 OTHER
             },
